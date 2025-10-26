@@ -5,9 +5,10 @@ import numpy as np
 from torchvision.datasets import CIFAR10
 import os
 from torchvision.transforms import ToTensor
-import matplotlib.pyplot as plt
 from typing import Optional, Tuple, Union
 from pathlib import Path
+import torch.nn as nn
+import torch.optim as optim
 
 
 class CIFAR10Dataset(Dataset):
@@ -58,8 +59,8 @@ def load_data(
     Returns:
         Tuple of (train_generator, test_generator)
     """
-    data_dir = f"./data/cifar-10-batches-py"
-    if not os.path.exists(data_dir):
+    data_dir = Path("./data/cifar-10-batches-py")
+    if not data_dir.exists():
         print(f"Data {data_dir} not found. Downloading {dataset} ...")
         CIFAR10(root="./data", train=True, download=True)
         CIFAR10(root="./data", train=False, download=True)
@@ -156,14 +157,61 @@ def show(
         plt.show()
 
 
+class SimpleModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_classes):
+        super(SimpleModel, self).__init__()
+        self.layer1 = nn.Linear(input_dim, hidden_dim)
+        self.relu = nn.ReLU()
+        self.layer2 = nn.Linear(hidden_dim, num_classes)
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.layer1(x)
+        x = self.relu(x)
+        x = self.layer2(x)
+        return x
+
+
+def train_one_epoch(model, train_loader, criterion, optimizer, device):
+    model.train()
+    running_loss = 0.0
+    for batch_idx, (inputs, labels) in enumerate(train_loader):
+        inputs, labels = inputs.to(device), labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
+    return running_loss / len(train_loader)
+
+
 # Test the function
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
     train_generator, test_generator = load_data(
         dataset="CIFAR10", n_train=40000, n_test=10000, batch_size=32
     )
+
+    # Visualize first
     for x, y in train_generator:
         print(
             f"Sample shape: {x.shape}, Type: {x.dtype}, Label: {y[0]}, Min/Max: {x.min().item()}/{x.max().item()}"
         )
         show(x, y=y, outfile="visualization.png")
         break
+
+    # Model and training
+    model = SimpleModel(input_dim=3 * 32 * 32, hidden_dim=128, num_classes=10).to(
+        device
+    )
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
+
+    # Train for one epoch
+    loss = train_one_epoch(model, train_generator, criterion, optimizer, device)
+    print(f"Training loss after one epoch: {loss:.4f}")
