@@ -10,8 +10,9 @@ from src.data import load_data
 from src.models import SimpleModel
 from src.training import train_one_epoch, evaluate_model
 from src.training.checkpoints import save_checkpoint, save_model_weights
-from src.utils.visualization import show
+from src.utils.visualization import CIFAR_CLASSES, show
 from src.utils.seeds import set_random_seeds, get_worker_init_fn
+from src.training.metrics import plot_confusion_matrix, plot_training_curves
 
 from config import DATA_CONFIG, MODEL_CONFIG, TRAINING_CONFIG, VIZ_CONFIG, SEED_CONFIG
 
@@ -78,6 +79,19 @@ def main():
         weight_decay=TRAINING_CONFIG["weight_decay"],
     )
 
+    # Initialize metrics storage
+    metrics_history = {
+        "train_loss": [],
+        "val_loss": [],
+        "test_loss": [],  # Note: only populated every 5 epochs
+        "val_accuracy": [],
+        "test_accuracy": [],  # Note: only populated every 5 epochs
+        "val_f1": [],
+        "val_precision": [],
+        "val_recall": [],
+        "val_f1_per_class": [],
+    }
+
     # Training loop
     print("Starting training...")
     for epoch in range(TRAINING_CONFIG["num_epochs"]):
@@ -86,13 +100,33 @@ def main():
         )
 
         # Validate every epoch
-        val_loss, val_accuracy = evaluate_model(model, val_generator, criterion, device)
+        val_loss, val_accuracy, val_metrics = evaluate_model(
+            model, val_generator, criterion, device
+        )
+
+        # Store metrics
+        # Store metrics
+        metrics_history["train_loss"].append(train_loss)
+        metrics_history["val_loss"].append(val_loss)
+        metrics_history["val_accuracy"].append(val_accuracy)
+        if "f1_score" in val_metrics:
+            metrics_history["val_f1"].append(val_metrics["f1_score"])
+        if "precision" in val_metrics:
+            metrics_history["val_precision"].append(val_metrics["precision"])
+        if "recall" in val_metrics:
+            metrics_history["val_recall"].append(val_metrics["recall"])
+        if "f1_per_class" in val_metrics:
+            metrics_history["val_f1_per_class"].append(val_metrics["f1_per_class"])
 
         # Test periodically (every 5 epochs)
         if (epoch + 1) % 5 == 0:
-            test_loss, test_accuracy = evaluate_model(
+            test_loss, test_accuracy, test_metrics = evaluate_model(
                 model, test_generator, criterion, device
             )
+
+            metrics_history["test_loss"].append(test_loss)
+            metrics_history["test_accuracy"].append(test_accuracy)
+
             print(
                 f"Epoch {epoch+1}/{TRAINING_CONFIG['num_epochs']}: "
                 f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.2f}%, "
@@ -116,14 +150,39 @@ def main():
 
     print("Training completed!")
 
+    print("Generating training curves...")
+    plot_training_curves(metrics_history, save_path="training_curves")
+
+    print("Generating confusion matrix on test set...")
+    _, _, final_test_metrics = evaluate_model(
+        model,
+        test_generator,
+        criterion,
+        device,
+        num_classes=MODEL_CONFIG["num_classes"],
+        detailed_metrics=True,
+    )
+    plot_confusion_matrix(
+        final_test_metrics["confusion_matrix"],
+        CIFAR_CLASSES,
+        save_path="confusion_matrix.png",
+    )
+
     # Final evaluation on test set
     print("Performing final evaluation on test set...")
-    final_test_loss, final_test_accuracy = evaluate_model(
-        model, test_generator, criterion, device
+    final_test_loss, final_test_accuracy, final_test_metrics = evaluate_model(
+        model, test_generator, criterion, device, detailed_metrics=True
     )
     print(
         f"Final Test Results: Loss: {final_test_loss:.4f}, Accuracy: {final_test_accuracy:.2f}%"
     )
+
+    print(f"\nFinal Test Results:")
+    print(f"Loss: {final_test_loss:.4f}")
+    print(f"Accuracy: {final_test_accuracy:.2f}%")
+    print(f"Precision: {final_test_metrics['precision']:.2f}%")
+    print(f"Recall: {final_test_metrics['recall']:.2f}%")
+    print(f"F1 Score: {final_test_metrics['f1_score']:.2f}%")
 
     # Save final model weights
     save_model_weights(

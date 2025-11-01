@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from typing import Tuple
+from typing import Tuple, Union, Dict
+from .metrics import calculate_classification_metrics
 
 
 def train_one_epoch(
@@ -43,21 +44,26 @@ def train_one_epoch(
 
 def evaluate_model(
     model: nn.Module,
-    test_loader: DataLoader,
+    dataloader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
-) -> Tuple[float, float]:
+    num_classes: int = 10,
+    detailed_metrics: bool = True,
+) -> Union[Tuple[float, float], Tuple[float, float, Dict]]:
     """
-    Evaluate the model on test data.
+    Evaluate the model on data.
 
     Args:
         model: The neural network model
-        test_loader: Test data loader
+        dataloader: Data loader
         criterion: Loss function
         device: Device to run on
+        num_classes: Number of classes
+        detailed_metrics: Whether to compute detailed metrics
 
     Returns:
-        Tuple of (test_loss, accuracy)
+        If detailed_metrics=False: (loss, accuracy)
+        If detailed_metrics=True: (loss, accuracy, metrics_dict)
     """
     model.eval()
     test_loss = 0.0
@@ -65,17 +71,23 @@ def evaluate_model(
     total = 0
 
     with torch.no_grad():
-        for inputs, labels in test_loader:
+        for inputs, labels in dataloader:
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             loss = criterion(outputs, labels)
-
             test_loss += loss.item()
+
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
-    test_loss /= len(test_loader)
+    test_loss /= len(dataloader)
     accuracy = 100.0 * correct / total
 
-    return test_loss, accuracy
+    if detailed_metrics:
+        metrics = calculate_classification_metrics(
+            model, dataloader, device, num_classes=num_classes
+        )
+        return test_loss, accuracy, metrics
+    else:
+        return test_loss, accuracy

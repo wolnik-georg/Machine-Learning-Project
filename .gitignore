@@ -4,3 +4,5 @@ __pycache__/
 checkpoints/
 trained_models/
 *.pth
+*.png
+.pytest_cache/
