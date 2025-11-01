@@ -9,27 +9,38 @@ import torch.optim as optim
 from src.data import load_data
 from src.models import SimpleModel
 from src.training import train_one_epoch, evaluate_model
-from config import DATA_CONFIG, MODEL_CONFIG, TRAINING_CONFIG, VIZ_CONFIG
 from src.training.checkpoints import save_checkpoint, save_model_weights
-from src.utils.visualization import show
+from src.utils.visualization import CIFAR_CLASSES, show
+from src.utils.seeds import set_random_seeds, get_worker_init_fn
+from src.training.metrics import plot_confusion_matrix, plot_training_curves
+
+from config import DATA_CONFIG, MODEL_CONFIG, TRAINING_CONFIG, VIZ_CONFIG, SEED_CONFIG
 
 
 def main():
     """Main training pipeline."""
+    # Set random seeds first to ensure reproducibility
+    set_random_seeds(
+        seed=SEED_CONFIG["seed"], deterministic=SEED_CONFIG["deterministic"]
+    )
+
     # Setup device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # Load data with proper normalization
     print("Loading data...")
-    train_generator, test_generator = load_data(
+    train_generator, val_generator, test_generator = load_data(
         dataset=DATA_CONFIG["dataset"],
-        n_train=DATA_CONFIG["n_train"],
-        n_test=DATA_CONFIG["n_test"],
+        n_train=DATA_CONFIG.get("n_train"),
+        n_test=DATA_CONFIG.get("n_test"),
+        use_batch_for_val=DATA_CONFIG.get("use_batch_for_val", False),
+        val_batch=DATA_CONFIG.get("val_batch", 5),
         batch_size=DATA_CONFIG["batch_size"],
         num_workers=DATA_CONFIG["num_workers"],
         root=DATA_CONFIG["root"],
         img_size=DATA_CONFIG["img_size"],
+        worker_init_fn=get_worker_init_fn(SEED_CONFIG["seed"]),
     )
 
     # Visualize first batch
@@ -68,19 +79,65 @@ def main():
         weight_decay=TRAINING_CONFIG["weight_decay"],
     )
 
+    # Initialize metrics storage
+    metrics_history = {
+        "train_loss": [],
+        "val_loss": [],
+        "test_loss": [],  # Note: only populated every 5 epochs
+        "val_accuracy": [],
+        "test_accuracy": [],  # Note: only populated every 5 epochs
+        "val_f1": [],
+        "val_precision": [],
+        "val_recall": [],
+        "val_f1_per_class": [],
+    }
+
     # Training loop
     print("Starting training...")
     for epoch in range(TRAINING_CONFIG["num_epochs"]):
         train_loss = train_one_epoch(
             model, train_generator, criterion, optimizer, device
         )
-        test_loss, accuracy = evaluate_model(model, test_generator, criterion, device)
 
-        print(
-            f"Epoch {epoch+1}/{TRAINING_CONFIG['num_epochs']}: "
-            f"Train Loss: {train_loss:.4f}, Test Loss: {test_loss:.4f}, "
-            f"Accuracy: {accuracy:.2f}%"
+        # Validate every epoch
+        val_loss, val_accuracy, val_metrics = evaluate_model(
+            model, val_generator, criterion, device
         )
+
+        # Store metrics
+        # Store metrics
+        metrics_history["train_loss"].append(train_loss)
+        metrics_history["val_loss"].append(val_loss)
+        metrics_history["val_accuracy"].append(val_accuracy)
+        if "f1_score" in val_metrics:
+            metrics_history["val_f1"].append(val_metrics["f1_score"])
+        if "precision" in val_metrics:
+            metrics_history["val_precision"].append(val_metrics["precision"])
+        if "recall" in val_metrics:
+            metrics_history["val_recall"].append(val_metrics["recall"])
+        if "f1_per_class" in val_metrics:
+            metrics_history["val_f1_per_class"].append(val_metrics["f1_per_class"])
+
+        # Test periodically (every 5 epochs)
+        if (epoch + 1) % 5 == 0:
+            test_loss, test_accuracy, test_metrics = evaluate_model(
+                model, test_generator, criterion, device
+            )
+
+            metrics_history["test_loss"].append(test_loss)
+            metrics_history["test_accuracy"].append(test_accuracy)
+
+            print(
+                f"Epoch {epoch+1}/{TRAINING_CONFIG['num_epochs']}: "
+                f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.2f}%, "
+                f"Test Loss: {test_loss:.4f}, Test Acc: {test_accuracy:.2f}%"
+            )
+        else:
+            print(
+                f"Epoch {epoch+1}/{TRAINING_CONFIG['num_epochs']}: "
+                f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.2f}%"
+            )
+
         if (epoch + 1) % 10 == 0:
             print(f"Saving checkpoint for epoch {epoch+1}...")
             save_checkpoint(
@@ -92,6 +149,40 @@ def main():
             )
 
     print("Training completed!")
+
+    print("Generating training curves...")
+    plot_training_curves(metrics_history, save_path="training_curves")
+
+    print("Generating confusion matrix on test set...")
+    _, _, final_test_metrics = evaluate_model(
+        model,
+        test_generator,
+        criterion,
+        device,
+        num_classes=MODEL_CONFIG["num_classes"],
+        detailed_metrics=True,
+    )
+    plot_confusion_matrix(
+        final_test_metrics["confusion_matrix"],
+        CIFAR_CLASSES,
+        save_path="confusion_matrix.png",
+    )
+
+    # Final evaluation on test set
+    print("Performing final evaluation on test set...")
+    final_test_loss, final_test_accuracy, final_test_metrics = evaluate_model(
+        model, test_generator, criterion, device, detailed_metrics=True
+    )
+    print(
+        f"Final Test Results: Loss: {final_test_loss:.4f}, Accuracy: {final_test_accuracy:.2f}%"
+    )
+
+    print(f"\nFinal Test Results:")
+    print(f"Loss: {final_test_loss:.4f}")
+    print(f"Accuracy: {final_test_accuracy:.2f}%")
+    print(f"Precision: {final_test_metrics['precision']:.2f}%")
+    print(f"Recall: {final_test_metrics['recall']:.2f}%")
+    print(f"F1 Score: {final_test_metrics['f1_score']:.2f}%")
 
     # Save final model weights
     save_model_weights(

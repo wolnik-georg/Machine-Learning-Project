@@ -5,6 +5,7 @@ from .checkpoints import (
     save_model_weights,
     load_model_weights,
 )
+from .metrics import plot_confusion_matrix, plot_training_curves
 
 __all__ = [
     "train_one_epoch",
@@ -13,4 +14,6 @@ __all__ = [
     "load_checkpoint",
     "save_model_weights",
     "load_model_weights",
+    "plot_confusion_matrix",
+    "plot_training_curves",
 ]

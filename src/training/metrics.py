@@ -1,0 +1,205 @@
+"""
+Enhanced Metrics Module for
+"""
+
+import torch
+import numpy as np
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
+from typing import Dict, Tuple, List
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+def calculate_classification_metrics(
+    model: torch.nn.Module,
+    data_loader: torch.utils.data.DataLoader,
+    device: torch.device,
+    num_classes: int = 10,
+) -> Dict[str, float]:
+    """
+    Calculate comprehensive classification metrics.
+    """
+    model.eval()
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for inputs, labels in data_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    # Convert to numpy arrays
+    all_preds = np.array(all_preds)
+    all_labels = np.array(all_labels)
+
+    # Calculate metrics
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        all_labels, all_preds, average="weighted", zero_division=0
+    )
+
+    # Overall accuracy
+    accuracy = np.mean(all_preds == all_labels)
+
+    # Per-class metrics
+    precision_per_class, recall_per_class, f1_per_class, _ = (
+        precision_recall_fscore_support(
+            all_labels, all_preds, average=None, zero_division=0
+        )
+    )
+
+    # Confusion matrix
+    cm = confusion_matrix(all_labels, all_preds)
+
+    return {
+        "accuracy": accuracy * 100,
+        "precision": precision * 100,
+        "recall": recall * 100,
+        "f1_score": f1 * 100,
+        "precision_per_class": precision_per_class,
+        "recall_per_class": recall_per_class,
+        "f1_per_class": f1_per_class,
+        "confusion_matrix": cm,
+        "predictions": all_preds,
+        "true_labels": all_labels,
+    }
+
+
+def plot_confusion_matrix(
+    cm: np.ndarray, class_names: List[str], save_path: str = None
+):
+    """Plot confusion matrix heatmap."""
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=class_names,
+        yticklabels=class_names,
+    )
+    plt.title("Confusion Matrix")
+    plt.ylabel("True Label")
+    plt.xlabel("Predicted Label")
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    else:
+        plt.show()
+
+
+def plot_training_curves(
+    metrics_history: Dict[str, List[float]],
+    save_path: str = None,
+    figsize: Tuple[int, int] = (10, 6),
+):
+    """
+    Plot training curves, saving each as a separate image.
+
+    Args:
+        metrics_history: Dict with keys like 'train_loss', 'val_accuracy', etc.
+        save_path: Base path for saving (will append metric names)
+        figsize: Figure size for each plot
+    """
+    epochs = range(1, len(metrics_history["train_loss"]) + 1)
+    base_path = save_path or "training_curves"
+
+    # Loss curves
+    plt.figure(figsize=figsize)
+    plt.plot(
+        epochs, metrics_history["train_loss"], "b-", label="Train Loss", linewidth=2
+    )
+    plt.plot(epochs, metrics_history["val_loss"], "r-", label="Val Loss", linewidth=2)
+    plt.title("Loss Curves")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{base_path}_loss.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+    # Accuracy curves
+    plt.figure(figsize=figsize)
+    plt.plot(
+        epochs, metrics_history["val_accuracy"], "r-", label="Val Accuracy", linewidth=2
+    )
+    plt.title("Validation Accuracy")
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy (%)")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"{base_path}_accuracy.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+    # F1 Score curves
+    if "val_f1" in metrics_history:
+        plt.figure(figsize=figsize)
+        plt.plot(epochs, metrics_history["val_f1"], "r-", label="Val F1", linewidth=2)
+        plt.title("Validation F1 Score")
+        plt.xlabel("Epochs")
+        plt.ylabel("F1 Score (%)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(f"{base_path}_f1.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+    # Precision vs Recall
+    if "val_precision" in metrics_history and "val_recall" in metrics_history:
+        plt.figure(figsize=figsize)
+        plt.plot(
+            epochs,
+            metrics_history["val_precision"],
+            "r-",
+            label="Val Precision",
+            linewidth=2,
+        )
+        plt.plot(
+            epochs, metrics_history["val_recall"], "g-", label="Val Recall", linewidth=2
+        )
+        plt.title("Validation Precision vs Recall")
+        plt.xlabel("Epochs")
+        plt.ylabel("Percentage (%)")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(f"{base_path}_precision_recall.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+    # Per-class F1 scores
+    if (
+        "val_f1_per_class" in metrics_history
+        and len(metrics_history["val_f1_per_class"]) > 0
+    ):
+        plt.figure(figsize=(figsize[0] * 1.5, figsize[1]))  # Wider for multiple lines
+        f1_per_class = np.array(metrics_history["val_f1_per_class"])
+        class_names = [
+            "airplane",
+            "automobile",
+            "bird",
+            "cat",
+            "deer",
+            "dog",
+            "frog",
+            "horse",
+            "ship",
+            "truck",
+        ]
+        for i, class_name in enumerate(class_names):
+            plt.plot(epochs, f1_per_class[:, i], label=class_name, linewidth=2)
+        plt.title("Validation F1 Score per Class")
+        plt.xlabel("Epochs")
+        plt.ylabel("F1 Score (%)")
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(f"{base_path}_per_class_f1.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+    print(f"Training curves saved as separate images with base name '{base_path}'")
