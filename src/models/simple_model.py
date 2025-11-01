@@ -40,7 +40,7 @@ class SimpleModel(nn.Module):
             # Use LeakyReLU to prevent dead neurons
             layers.append(nn.LeakyReLU(0.1))
 
-            # Add dropout for regularization (but not too much early on)
+            # Add dropout for regularization
             if i > 0:  # Skip dropout on first layer
                 layers.append(nn.Dropout(dropout_rate))
 

@@ -2,9 +2,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 import pickle
 import numpy as np
-from torchvision.datasets import CIFAR10
 import os
-from torchvision.transforms import ToTensor
 from typing import Optional, Tuple, Callable
 from pathlib import Path
 from PIL import Image
