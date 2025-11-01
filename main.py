@@ -10,10 +10,8 @@ from torchvision import transforms
 from src.data import load_data
 from src.models import SimpleModel
 from src.training import train_one_epoch, evaluate_model
-from src.utils import show
 from config import DATA_CONFIG, MODEL_CONFIG, TRAINING_CONFIG, VIZ_CONFIG
 from src.utils.visualization import show_raw_batch
-from src.utils.visualization import CIFAR_CLASSES
 
 
 def main():
