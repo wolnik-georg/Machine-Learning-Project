@@ -40,3 +40,14 @@ SEED_CONFIG = {
     "seed": 42,
     "deterministic": False,
 }
+
+# Augmentation configuration
+AUGMENTATION_CONFIG = {
+    "use_augmentation": True,  # Toggle for all augmentations
+    "rand_augment_m": 9,  # Magnitude for RandAugment
+    "rand_augment_n": 2,  # Number of operations per image
+    "mixup_alpha": 0.8,  # Alpha for Mixup
+    "random_erase_prob": 0.25,  # Probability for RandomErasing
+    "mean": [0.485, 0.456, 0.406],  # ImageNet mean (works for both)
+    "std": [0.229, 0.224, 0.225],  # ImageNet std
+}

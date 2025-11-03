@@ -7,6 +7,8 @@ from typing import Optional, Tuple, Callable
 from pathlib import Path
 from PIL import Image
 from torchvision import transforms, datasets
+import random
+from config import AUGMENTATION_CONFIG
 
 import logging
 
@@ -46,8 +48,38 @@ class CIFAR10Dataset(Dataset):
         return sample, self.labels[idx]
 
 
-def get_default_transforms(dataset: str, img_size: int = 224) -> Callable:
-    """+
+class RandAugment:
+    """Custom RandAugment"""
+
+    def __init__(self, n: int, m: int):
+        self.n = n
+        self.m = m
+        self.ops = [
+            transforms.ColorJitter(brightness=self._mag(m)),
+            transforms.ColorJitter(contrast=self._mag(m)),
+            transforms.ColorJitter(saturation=self._mag(m)),
+            transforms.ColorJitter(hue=self._mag(m) / 0.5),
+            transforms.RandomAffine(degrees=self._mag(m, 30)),
+            transforms.GaussianBlur(3),
+            transforms.RandomPosterize(bits=max(1, 8 - self._mag(m) // 4)),
+            transforms.RandomSolarize(threshold=self._mag(m, 256)),
+            transforms.RandomEqualize(),
+        ]
+
+    def _mag(self, m, max_val=1.0):
+        return (m / 30) * max_val
+
+    def __call__(self, img):
+        ops = random.sample(self.ops, self.n)
+        for op in ops:
+            img = op(img)
+        return img
+
+
+def get_default_transforms(
+    dataset: str, img_size: int = 224, is_training: bool = False
+) -> Callable:
+    """
     Get default transformations for different datasets.
     CIFAR: 32x32, ImageNet: 224x224
 
@@ -58,31 +90,42 @@ def get_default_transforms(dataset: str, img_size: int = 224) -> Callable:
     Returns:
         A torchvision.transforms.Compose object with the appropriate transformations.
     """
-    if dataset in ["CIFAR10", "CIFAR100"]:
-        cifar_mean = [0.4914, 0.4822, 0.4465]
-        cifar_std = [0.2470, 0.2435, 0.2616]
-
+    if not AUGMENTATION_CONFIG["use_augmentation"]:
         return transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Normalize(mean=cifar_mean, std=cifar_std),
-            ]
+            transforms.Resize((img_size, img_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=AUGMENTATION_CONFIG["mean"],
+                std=AUGMENTATION_CONFIG["std"],
+            ),
         )
 
-    elif dataset == "ImageNet":
-        imagenet_mean = [0.485, 0.456, 0.406]
-        imagenet_std = [0.229, 0.224, 0.225]
-
+    if is_training:
         return transforms.Compose(
-            [
-                transforms.Resize((img_size, img_size)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=imagenet_mean, std=imagenet_std),
-            ]
+            transforms.Resize(256),  # Upsample for cropping
+            transforms.RandomResizedCrop(img_size, scale=(0.08, 1.0)),
+            RandAugment(
+                n=AUGMENTATION_CONFIG["rand_augment_n"],
+                m=AUGMENTATION_CONFIG["rand_augment_m"],
+            ),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=AUGMENTATION_CONFIG["mean"], std=AUGMENTATION_CONFIG["std"]
+            ),
+            transforms.RandomErasing(p=AUGMENTATION_CONFIG["random_erase_prob"]),
         )
-
     else:
-        raise ValueError(f"No default transforms defined for dataset: {dataset}")
+        return transforms.Compose(
+            [
+                transforms.Resize(256),
+                transforms.CenterCrop(img_size),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=AUGMENTATION_CONFIG["mean"], std=AUGMENTATION_CONFIG["std"]
+                ),
+            ]
+        )
 
 
 def load_data(
@@ -190,12 +233,23 @@ def load_data(
             test_data = test_batch[b"data"]
             test_labels = np.array(test_batch[b"labels"])
 
-        # Create datasets (transform applied in __getitem__)
-        train_dataset = CIFAR10Dataset(
-            train_data, train_labels, transform=transformation
+        # Get correct transformations for train/val/test
+        train_transform = get_default_transforms(
+            dataset, img_size=img_size, is_training=True
         )
-        val_dataset = CIFAR10Dataset(val_data, val_labels, transform=transformation)
-        test_dataset = CIFAR10Dataset(test_data, test_labels, transform=transformation)
+        val_transform = get_default_transforms(
+            dataset, img_size=img_size, is_training=False
+        )
+        test_transform = get_default_transforms(
+            dataset, img_size=img_size, is_training=False
+        )
+
+        # Create datasets
+        train_dataset = CIFAR10Dataset(
+            train_data, train_labels, transform=train_transform
+        )
+        val_dataset = CIFAR10Dataset(val_data, val_labels, transform=val_transform)
+        test_dataset = CIFAR10Dataset(test_data, test_labels, transform=test_transform)
 
     elif dataset == "CIFAR100":
         train_dataset = datasets.CIFAR100(

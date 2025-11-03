@@ -13,8 +13,16 @@ from src.training.checkpoints import save_checkpoint, save_model_weights
 from src.utils.visualization import CIFAR_CLASSES, show
 from src.utils.seeds import set_random_seeds, get_worker_init_fn
 from src.training.metrics import plot_confusion_matrix, plot_training_curves
+from src.training.trainer import Mixup
 
-from config import DATA_CONFIG, MODEL_CONFIG, TRAINING_CONFIG, VIZ_CONFIG, SEED_CONFIG
+from config import (
+    AUGMENTATION_CONFIG,
+    DATA_CONFIG,
+    MODEL_CONFIG,
+    TRAINING_CONFIG,
+    VIZ_CONFIG,
+    SEED_CONFIG,
+)
 
 # Setup logging
 import logging
@@ -102,16 +110,25 @@ def main():
         "val_f1_per_class": [],
     }
 
+    mixup = (
+        Mixup(alpha=AUGMENTATION_CONFIG["mixup_alpha"])
+        if AUGMENTATION_CONFIG.get("mixup_alpha")
+        else None
+    )
+
     # Training loop
     logger.info("Starting training...")
     for epoch in range(TRAINING_CONFIG["num_epochs"]):
         train_loss = train_one_epoch(
-            model, train_generator, criterion, optimizer, device
+            model, train_generator, criterion, optimizer, device, mixup=mixup
         )
 
         # Validate every epoch
         val_loss, val_accuracy, val_metrics = evaluate_model(
-            model, val_generator, criterion, device
+            model,
+            val_generator,
+            criterion,
+            device,
         )
 
         # Store metrics
