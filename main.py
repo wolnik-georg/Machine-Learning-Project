@@ -13,7 +13,11 @@ from src.training import train_one_epoch, evaluate_model
 from src.training.checkpoints import save_checkpoint, save_model_weights
 from src.utils.visualization import CIFAR_CLASSES, show
 from src.utils.seeds import set_random_seeds, get_worker_init_fn
-from src.training.metrics import plot_confusion_matrix, plot_training_curves
+from src.training.metrics import (
+    plot_confusion_matrix,
+    plot_lr_schedule,
+    plot_training_curves,
+)
 from src.training.trainer import Mixup
 
 from config import (
@@ -138,6 +142,9 @@ def main():
         "val_f1_per_class": [],
     }
 
+    # Learning rate history
+    lr_history = []
+
     mixup = (
         Mixup(alpha=AUGMENTATION_CONFIG["mixup_alpha"])
         if AUGMENTATION_CONFIG.get("mixup_alpha")
@@ -174,9 +181,13 @@ def main():
 
         if scheduler:
             scheduler.step()
+            current_lr = optimizer.param_groups[0]["lr"]
+            lr_history.append(current_lr)
             logger.info(
-                f"Epoch {epoch+1}/{TRAINING_CONFIG['num_epochs']}: LR: {optimizer.param_groups[0]['lr']:.6f}"
+                f"Epoch {epoch+1}/{TRAINING_CONFIG['num_epochs']}: LR: {current_lr:.6f}"
             )
+        else:
+            lr_history.append(TRAINING_CONFIG["learning_rate"])
 
         # Test periodically (every 5 epochs)
         if (epoch + 1) % 5 == 0:
@@ -236,6 +247,10 @@ def main():
     logger.info(
         f"Final Test Results: Loss: {final_test_loss:.4f}, Accuracy: {final_test_accuracy:.2f}%"
     )
+
+    if lr_history:
+        logger.info("Generating LR schedule plot...")
+        plot_lr_schedule(lr_history, save_path="lr_schedule.png")
 
     logger.info(f"\nFinal Test Results:")
     logger.info(f"Loss: {final_test_loss:.4f}")
