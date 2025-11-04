@@ -1,8 +1,26 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from typing import Tuple, Union, Dict
+from typing import Optional, Tuple, Union, Dict
 from .metrics import calculate_classification_metrics
+from config import AUGMENTATION_CONFIG
+import numpy as np
+
+
+class Mixup:
+    """Mixup augmentation for label smoothing."""
+
+    def __init__(self, alpha: float = 0.8):
+        self.alpha = alpha
+
+    def __call__(self, x, y):
+        if self.alpha > 0 and AUGMENTATION_CONFIG["use_augmentation"]:
+            lam = np.random.beta(self.alpha, self.alpha)
+            index = torch.randperm(x.size(0))
+            x_mix = lam * x + (1 - lam) * x[index]
+            y_a, y_b = y, y[index]
+            return x_mix, y_a, y_b, lam
+        return x, y, y, 1.0  # No mixup if disabled
 
 
 def train_one_epoch(
@@ -11,6 +29,7 @@ def train_one_epoch(
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    mixup: Optional[Mixup] = None,
 ) -> float:
     """
     Train the model for one epoch.
@@ -31,9 +50,19 @@ def train_one_epoch(
     for batch_idx, (inputs, labels) in enumerate(train_loader):
         inputs, labels = inputs.to(device), labels.to(device)
 
+        if mixup:
+            inputs, labels_a, labels_b, lam = mixup(inputs, labels)
+
         optimizer.zero_grad()
         outputs = model(inputs)
-        loss = criterion(outputs, labels)
+
+        if mixup:
+            loss = lam * criterion(outputs, labels_a) + (1 - lam) * criterion(
+                outputs, labels_b
+            )
+        else:
+            loss = criterion(outputs, labels)
+
         loss.backward()
         optimizer.step()
 
