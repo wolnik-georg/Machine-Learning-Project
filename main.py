@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import SequentialLR, LinearLR, CosineAnnealingLR
 from src.data import load_data
 from src.models import SimpleModel
 from src.training import train_one_epoch, evaluate_model
+from src.training.early_stopping import EarlyStopping
 from src.training.checkpoints import save_checkpoint, save_model_weights
 from src.utils.visualization import CIFAR_CLASSES, show
 from src.utils.seeds import set_random_seeds, get_worker_init_fn
@@ -151,6 +152,9 @@ def main():
         else None
     )
 
+    # Early stopping setup
+    early_stopper = EarlyStopping(patience=5, min_delta=0.01, mode='min')
+
     # Training loop
     logger.info("Starting training...")
     for epoch in range(TRAINING_CONFIG["num_epochs"]):
@@ -188,6 +192,11 @@ def main():
             )
         else:
             lr_history.append(TRAINING_CONFIG["learning_rate"])
+
+        # Early stopping check
+        if early_stopper(val_loss):
+            logger.info(f"Early stopping triggered at epoch {epoch+1}.")
+            break
 
         # Test periodically (every 5 epochs)
         if (epoch + 1) % 5 == 0:
