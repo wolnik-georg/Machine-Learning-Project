@@ -24,7 +24,7 @@ from src.training.trainer import Mixup
 
 from src.utils.visualization import CIFAR_CLASSES, show
 from src.utils.seeds import set_random_seeds, get_worker_init_fn
-from src.utils.experiment import setup_run_directory, setup_logging
+from src.utils.experiment import setup_run_directory, setup_logging, ExperimentTracker
 from src.utils.model_validation import ModelValidator
 
 from config import (
@@ -344,6 +344,9 @@ def main():
     run_dir = setup_run_directory()
     setup_logging(run_dir)
 
+    # Initialize experiment tracker
+    tracker = ExperimentTracker(run_dir)
+
     # Set random seeds first to ensure reproducibility
     set_random_seeds(
         seed=SEED_CONFIG["seed"], deterministic=SEED_CONFIG["deterministic"]
@@ -353,6 +356,18 @@ def main():
     device = setup_device()
     train_generator, val_generator, test_generator = setup_data(device, run_dir)
     model = setup_model(device)
+
+    # Log all configurations
+    tracker.log_config(
+        DATA_CONFIG=DATA_CONFIG,
+        MODEL_CONFIG=MODEL_CONFIG,
+        TRAINING_CONFIG=TRAINING_CONFIG,
+        AUGMENTATION_CONFIG=AUGMENTATION_CONFIG,
+        SCHEDULER_CONFIG=SCHEDULER_CONFIG,
+        VALIDATION_CONFIG=VALIDATION_CONFIG,
+        SEED_CONFIG=SEED_CONFIG,
+        VIZ_CONFIG=VIZ_CONFIG,
+    )
 
     # Validate model implementation
     validation_results = validate_model_if_enabled(model, val_generator, run_dir)
@@ -386,6 +401,16 @@ def main():
         run_dir,
         validation_results,
     )
+
+    tracker.log_results(
+        final_metrics=final_test_metrics,
+        training_history=metrics_history,
+        validation_results=validation_results,
+    )
+
+    # Finalize experiment
+    tracker.finalize()
+
     save_final_model(model)
 
 
