@@ -1,0 +1,129 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class WindowAttention(nn.Module):
+    """
+        Window-based Multi-Head Self-Attention (W-MSA) module with relative position bias.
+
+        This module implements local self-attention as used in the Swin Transformer.
+        Instead of attending globally over all tokens, attention is computed within
+        non-overlapping windows (e.g., 7×7 patches). Each head learns an additive
+        relative position bias to encode spatial relationships inside the window.
+
+        Architecture:
+        Input → Linear(QKV projection) → Scaled Dot-Product Attention (per window & head)
+            → Add relative position bias → Softmax → Dropout
+            → Weighted sum of Values → Linear projection → Dropout
+
+        Supports:
+        - Multi-head attention across fixed-size windows
+        - Learnable relative position bias per attention head
+        - Optional attention mask for shifted windows (SW-MSA)
+        - Dropout for regularization
+
+    """
+
+    def __init__(
+            self,
+            dim: int,
+            window_size: tuple[int],
+            num_heads: int,
+            dropout: float = 0.0,
+        ):
+            
+            """
+            Initialize W-MSA (/ SW-MSA).
+
+            Args:
+                dim: Input feature dimension
+                window_size: The height and width of the window.
+                num_heads: Number of attention heads.
+                dropout: Dropout rate. Default: 0.0
+            """
+
+            super().__init__()
+
+            # TODO: USE LOGGER HERE (ALSO SEEDS NEEDED?)
+            assert dim % num_heads == 0, "Embedding dimension must be divisible by number of heads"
+
+            self.embed_dim = dim
+            self.head_dim = dim // num_heads
+            self.window_size = window_size
+            self.num_heads = num_heads
+
+            self.dropout = nn.Dropout(dropout)
+
+            # relative postion bias as learnable parameter
+            self.relative_position_biases = nn.Parameter(
+                 torch.empty((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads)
+                 ) # 2*Wh-1 * 2*Ww-1, nH
+            
+            # random initialization to break symmetry
+            nn.init.trunc_normal_(self.relative_position_biases)
+
+            # get pair-wise relative position index for each token inside the window
+            coords_h = torch.arange(self.window_size[0])
+            coords_w = torch.arange(self.window_size[1])
+            coords = torch.stack(torch.meshgrid([coords_h, coords_w], indexing='ij'))  # 2, Wh, Ww
+            coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
+            relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
+            relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
+            relative_coords[:, :, 0] += self.window_size[0] - 1  # shift to start from 0
+            relative_coords[:, :, 1] += self.window_size[1] - 1
+            relative_coords[:, :, 0] *= 2 * self.window_size[1] - 1
+
+            relative_position_index = relative_coords.sum(-1).to(torch.long)  # [N, N]
+
+            self.register_buffer("relative_position_index", relative_position_index, persistent=False)
+
+            # optimized (normally multiple linear layers)
+            self.linear_qkv = nn.Linear(dim, dim * 3)
+
+            self.proj = nn.Linear(dim, dim)
+
+
+    def forward(self, x: torch.Tensor, attn_mask: torch.Tensor = None) -> torch.Tensor:
+        """
+        Forward pass.
+
+        Args:
+            x: Input tensor [num_windows*B, N, C]
+            attn_mask: boolean mask [num_windows, Wh*Ww, Wh*Ww]. Default = None
+
+        Returns:
+            Output tensor [num_windows*B, N, C]
+        """
+        wB, N, C = x.shape
+        qkv = self.linear_qkv(x).reshape(wB, N, 3, self.num_heads, C // self.num_heads) \
+                                .permute(2, 0, 3, 1, 4)  # [3, wB, nH, N, head_dim]
+        q, k, v = qkv.unbind(0)  # each: [wB, nH, N, head_dim]
+
+        # Scale dot product
+        scores = torch.matmul(q, k.transpose(-2, -1)) / (self.head_dim ** 0.5)
+
+        # relative position bias: [nH, N, N] -> broadcast to [wB, nH, N, N]
+        relative_position_bias = self.relative_position_biases[self.relative_position_index.view(-1)].view(
+            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)  # Wh*Ww,Wh*Ww,nH
+        relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+        # add learnable relative postition biases to scores (attention matrix)
+        scores = scores + relative_position_bias.unsqueeze(0)
+        
+        # masking logic applied here
+        if attn_mask is not None:
+            nW = attn_mask.shape[0]  # num_windows
+            scores = scores.view(-1, nW, self.num_heads, N, N)
+            scores = scores.masked_fill(attn_mask.unsqueeze(1).unsqueeze(0) == 0, -100.0) # 0 after softmax layer
+            scores = scores.view(-1, self.num_heads, N, N)
+        
+        attn = F.softmax(scores, dim=-1)
+        attn = self.dropout(attn)
+        attn_out = torch.matmul(attn, v)  # [wB, nH, N, head_dim]
+
+        attn_out = attn_out.transpose(1, 2).contiguous().view(wB, N, C)   # [wB, N, C]
+
+        out = self.proj(attn_out)
+        # TODO: split into attention and projection dropout & add to config
+        out = self.dropout(out)
+
+        return out
