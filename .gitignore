@@ -8,3 +8,4 @@ trained_models/
 .pytest_cache/
 training.log
 .vscode
+runs/

@@ -112,14 +112,18 @@ class SwinTransformerBlock(nn.Module):
         self.mlp_ratio = mlp_ratio
 
         # Validate parameters
-        if min(self.input_resolution) <= self.window_size:
-            # If window size is larger than input resolution, don't partition
+        if (
+            self.input_resolution[0] % self.window_size != 0
+            or self.input_resolution[1] % self.window_size != 0
+        ):
+            # If window size doesn't divide input resolution evenly, adjust
+            new_window_size = min(self.input_resolution[0], self.input_resolution[1])
             logger.warning(
-                f"Window size {self.window_size} >= input resolution {self.input_resolution}. "
-                f"Adjusting window_size to {min(self.input_resolution)} and shift_size to 0."
+                f"Window size {self.window_size} doesn't divide input resolution {self.input_resolution} evenly. "
+                f"Adjusting window_size to {new_window_size} and shift_size to 0."
             )
+            self.window_size = new_window_size
             self.shift_size = 0
-            self.window_size = min(self.input_resolution)
 
         assert (
             0 <= self.shift_size < self.window_size
@@ -133,7 +137,7 @@ class SwinTransformerBlock(nn.Module):
             window_size=(self.window_size, self.window_size),
             num_heads=num_heads,
             attn_dropout=attention_dropout,
-            proj_dropout=projection_dropout
+            proj_dropout=projection_dropout,
         )
 
         # Stochastic depth (DropPath) for regularization
@@ -146,7 +150,6 @@ class SwinTransformerBlock(nn.Module):
         self.mlp = MLP(in_features=dim, hidden_features=mlp_hidden_dim, dropout=dropout)
 
         self.drop_path2 = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
-
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -192,11 +195,18 @@ class SwinTransformerBlock(nn.Module):
                 x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2)
             )
             # Create attention mask dynamically for SW-MSA
-            image_mask = create_image_mask(self.input_resolution, self.window_size, self.shift_size, device=x.device)
+            image_mask = create_image_mask(
+                self.input_resolution,
+                self.window_size,
+                self.shift_size,
+                device=x.device,
+            )
             mask_windows = window_partition(image_mask, self.window_size)
             mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
             attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
-            attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+            attn_mask = attn_mask.masked_fill(
+                attn_mask != 0, float(-100.0)
+            ).masked_fill(attn_mask == 0, float(0.0))
         else:
             shifted_x = x
             attn_mask = None

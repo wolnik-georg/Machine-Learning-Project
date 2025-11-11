@@ -71,21 +71,21 @@ class SwinTransformerModel(nn.Module):
 
         self.layers = nn.ModuleList()
         for i in range(self.num_layers):
-            # Calculate dimensions for this stage
-            stage_dimension = int(embedding_dim * 2**i)
+            # Timm dimension pattern: 96, 192, 384, 768
+            stage_dimension = int(embedding_dim * (2**i))  # 96, 192, 384, 768
             state_depth = depths[i]
             stage_num_heads = num_heads[i]
 
-            # Calculate input resolution for stage
+            # Calculate input resolution for stage (timm-compatible)
             if i == 0:
-                input_resolution = (
-                    patches_resolution  # First stage is same as patch resolution
-                )
-            else:
-                # Halve resolution
                 input_resolution = [
-                    patches_resolution[0] // (2**i),
-                    patches_resolution[1] // (2**i),
+                    patches_resolution[0],
+                    patches_resolution[1],
+                ]  # 56x56
+            else:
+                input_resolution = [
+                    patches_resolution[0] // (2 ** (i - 1)),
+                    patches_resolution[1] // (2 ** (i - 1)),
                 ]
 
             # Prepare Stage specific drop path rates
@@ -93,7 +93,16 @@ class SwinTransformerModel(nn.Module):
                 sum(depths[:i]) : sum(depths[: i + 1])
             ]
 
-            # Create basic layer
+            # Create basic layer with timm-compatible downsampling pattern
+            if i == 0:  # First stage - no downsampling (Identity in timm)
+                downsample = None
+                downsample_input_dim = None
+            else:  # stages 1, 2, 3 - with downsampling
+                # For PatchMerging, we need to pass the correct input dim
+                # The input dim should match the previous layer's output dim
+                downsample_input_dim = int(embedding_dim * (2 ** (i - 1)))
+                downsample = PatchMerging
+
             basic_layer = BasicLayer(
                 dim=stage_dimension,
                 input_resolution=input_resolution,
@@ -105,19 +114,17 @@ class SwinTransformerModel(nn.Module):
                 attention_dropout=attention_dropout_rate,
                 projection_dropout=projection_dropout_rate,
                 drop_path=stage_drop_path_rates,
-                # Downsampling at end of each stage except the last
-                downsample=PatchMerging if i < self.num_layers - 1 else None,
+                downsample=downsample,  # Timm-compatible downsampling
+                downsample_input_dim=downsample_input_dim,
             )
 
             self.layers.append(basic_layer)
 
         self.norm = norm_layer(self.num_features)  # Feature normalization
         self.avgpool = nn.AdaptiveAvgPool1d(1)  # Average pooling
-        
+
         # Match timm's head structure
-        self.head = nn.ModuleDict({
-            'fc': nn.Linear(self.num_features, num_classes)
-        })
+        self.head = nn.ModuleDict({"fc": nn.Linear(self.num_features, num_classes)})
 
         # Initialize weights
         self.apply(self._init_weights)
@@ -149,7 +156,7 @@ class SwinTransformerModel(nn.Module):
         x = self.avgpool(x.transpose(1, 2))
         x = torch.flatten(x, 1)
 
-        x = self.head['fc'](x)
+        x = self.head["fc"](x)
         return x
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

@@ -178,8 +178,8 @@ class TestSwinTransformerModel:
         loss.backward()
 
         # Check that gradients exist
-        assert model.head.weight.grad is not None
-        assert model.patch_embedding.proj.weight.grad is not None
+        assert model.head["fc"].weight.grad is not None
+        assert model.patch_embed.proj.weight.grad is not None
 
     def test_swin_model_different_input_sizes(self):
         """Test model with different input sizes."""
