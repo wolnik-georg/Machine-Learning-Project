@@ -91,7 +91,7 @@ SCHEDULER_CONFIG = {
 
 # Model Validation Configuration
 VALIDATION_CONFIG = {
-    "enable_validation": False,  # Enable for Swin validation
+    "enable_validation": True,  # Enable for Swin validation
     "pretrained_model": "swin_tiny_patch4_window7_224",
     "transfer_weights": True,  # Transfer weights before comparison
     "validation_samples": 1000,  # Limit samples for faster validation
