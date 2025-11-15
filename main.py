@@ -64,7 +64,9 @@ def plot_cifar100_class_distribution(run_dir):
         logger.info("Generating CIFAR-100 class distribution plot...")
 
         # Use same data root as training
-        dataset = datasets.CIFAR100(root=DATA_CONFIG["root"], train=True, download=False)
+        dataset = datasets.CIFAR100(
+            root=DATA_CONFIG["root"], train=True, download=False
+        )
 
         # Count samples per fine class
         train_counts = np.bincount(dataset.targets, minlength=100)
@@ -80,13 +82,19 @@ def plot_cifar100_class_distribution(run_dir):
         ax1.set_title("CIFAR-100: 100 Fine-Grained Classes", fontsize=14, pad=20)
         ax1.set_xlabel("Class Index")
         ax1.set_ylabel("Training Samples")
-        ax1.axhline(500, color="red", linestyle="--", linewidth=1.5, label="Expected: 500")
+        ax1.axhline(
+            500, color="red", linestyle="--", linewidth=1.5, label="Expected: 500"
+        )
         ax1.legend()
         ax1.grid(True, axis="y", alpha=0.3)
 
         # Superclasses
         ax2.bar(
-            range(20), superclass_counts, color="lightcoral", edgecolor="darkred", alpha=0.8
+            range(20),
+            superclass_counts,
+            color="lightcoral",
+            edgecolor="darkred",
+            alpha=0.8,
         )
         ax2.set_title("20 Superclasses (5 classes each)", fontsize=14, pad=20)
         ax2.set_xlabel("Superclass Index")
@@ -119,14 +127,18 @@ def plot_upsampling_comparison(run_dir):
         logger.info("Generating upsampling comparison plot...")
 
         # Use same data root as training
-        dataset = datasets.CIFAR100(root=DATA_CONFIG["root"], train=True, download=False)
+        dataset = datasets.CIFAR100(
+            root=DATA_CONFIG["root"], train=True, download=False
+        )
         img, label = dataset[42]  # Choose a visually clear image
 
         # Original
         img_np = np.array(img)
 
         # Resized
-        resize = transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC)
+        resize = transforms.Resize(
+            224, interpolation=transforms.InterpolationMode.BICUBIC
+        )
         img_resized = resize(img)
         img_resized_np = np.array(img_resized)
 
@@ -450,12 +462,6 @@ def generate_reports(
             save_path=str(run_dir / "model_validation_comparison.png"),
         )
 
-    # Generate dataset analysis plots
-    if DATA_CONFIG["dataset"] in ["CIFAR10", "CIFAR100"]:
-        if DATA_CONFIG["dataset"] == "CIFAR100":
-            plot_cifar100_class_distribution(run_dir)
-        plot_upsampling_comparison(run_dir)
-
     logger.info(f"\nFinal Test Results:")
     logger.info(f"Loss: {final_test_loss:.4f}")
     logger.info(f"Accuracy: {final_test_accuracy:.2f}%")
@@ -504,6 +510,13 @@ def main():
     # Setup components
     device = setup_device()
     train_generator, val_generator, test_generator = setup_data(device, run_dir)
+
+    # Generate dataset analysis plots (run early, right after data loading)
+    if DATA_CONFIG["dataset"] in ["CIFAR10", "CIFAR100"]:
+        if DATA_CONFIG["dataset"] == "CIFAR100":
+            plot_cifar100_class_distribution(run_dir)
+        plot_upsampling_comparison(run_dir)
+
     model = setup_model(device)
 
     # Log all configurations
