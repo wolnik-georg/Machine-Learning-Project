@@ -10,12 +10,12 @@ DATA_CONFIG = {
     "batch_size": 32,
     "num_workers": 4,
     "root": "./datasets",
-    "img_size": 32,
+    "img_size": 224,  # Changed from 32 to 224 for ImageNet compatibility
 }
 
 # Model configuration
 MODEL_CONFIG = {
-    "input_dim": 3 * 32 * 32,
+    "input_dim": 3 * 224 * 224,  # Updated for 224x224 images
     "hidden_dims": [512, 256, 128],
     "num_classes": 100,
     "dropout_rate": 0.3,
@@ -23,7 +23,7 @@ MODEL_CONFIG = {
 }
 
 SWIN_CONFIG = {
-    "img_size": 32,
+    "img_size": 224,  # Changed from 32 to 224
     "patch_size": 4,
     "embed_dim": 96,
     "depths": [2, 2, 6, 2],
