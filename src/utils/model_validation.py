@@ -10,17 +10,12 @@ import logging
 from typing import Dict, Tuple, Optional
 from pathlib import Path
 
+from src.utils.load_weights import (
+    load_pretrained_reference,
+    transfer_weights,
+)
+
 logger = logging.getLogger(__name__)
-
-try:
-    from timm import create_model
-
-    TIMM_AVAILABLE = True
-except ImportError:
-    TIMM_AVAILABLE = False
-    logger.warning(
-        "timm library not found. Pretrained model validation will be disabled."
-    )
 
 
 class ModelValidator:
@@ -29,69 +24,7 @@ class ModelValidator:
     """
 
     def __init__(self, device: str = "cuda"):
-        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
-
-    def load_pretrained_reference(
-        self, model_name: str = "swin_tiny_patch4_window7_224"
-    ) -> Optional[nn.Module]:
-        if not TIMM_AVAILABLE:
-            logger.error(
-                "timm library is not available. Cannot load pretrained models."
-            )
-            return None
-
-        try:
-            model = create_model(model_name, pretrained=True, num_classes=1000)
-            model.eval()
-            logger.info(f"Loaded pretrained model: {model_name} from timm.")
-            return model.to(self.device)
-        except Exception as e:
-            logger.error(f"Failed to load pretrained model: {e}")
-            return None
-
-    def transfer_weights(
-        self,
-        custom_model: nn.Module,
-        pretrained_model: nn.Module,
-    ) -> Dict[str, int]:
-        """
-        Transfer weights from pretrained to custom model.
-        """
-        pretrained_state = pretrained_model.state_dict()
-        custom_state = custom_model.state_dict()
-
-        transferred = 0
-        missing = []
-        size_mismatches = []
-
-        for name, param in custom_state.items():
-            if name in pretrained_state:
-                pretrained_param = pretrained_state[name]
-                if param.shape == pretrained_param.shape:
-                    param.data.copy_(pretrained_param.data)
-                    transferred += 1
-                else:
-                    size_mismatches.append(
-                        f"{name}: {param.shape} vs {pretrained_param.shape}"
-                    )
-            else:
-                missing.append(name)
-
-        logger.info(f"Weight transfer: {transferred} layers transferred.")
-        if missing:
-            logger.warning(
-                f"Missing weights: {missing[:5]}{'...' if len(missing) > 5 else ''}"
-            )
-        if size_mismatches:
-            logger.warning(
-                f"Size mismatches: {size_mismatches[:3]}{'...' if len(size_mismatches) > 3 else ''}"
-            )
-
-        return {
-            "transferred": transferred,
-            "missing": len(missing),
-            "size_mismatches": len(size_mismatches),
-        }
+        self.device = device
 
     @torch.no_grad()
     def evaluate_model(
@@ -190,8 +123,9 @@ class ModelValidator:
         logger.info("Starting model implementation validation...")
 
         # Load pretrained reference model
-        pretrained_model = self.load_pretrained_reference(
-            validation_config.get("pretrained_model", "swin_tiny_patch4_window7_224")
+        pretrained_model = load_pretrained_reference(
+            validation_config.get("pretrained_model", "swin_tiny_patch4_window7_224"),
+            device=self.device,
         )
 
         if pretrained_model is None:
@@ -201,7 +135,12 @@ class ModelValidator:
         # Transfer weights if requested
         if validation_config.get("transfer_weights", True):
             logger.info("Transferring weights from pretrained to custom model...")
-            transfer_stats = self.transfer_weights(custom_model, pretrained_model)
+            transfer_stats = transfer_weights(
+                custom_model,
+                pretrained_model,
+                encoder_only=False,
+                device=self.device
+                )
             logger.info(f"Weight transfer completed: {transfer_stats}")
 
         # Create validation dataset

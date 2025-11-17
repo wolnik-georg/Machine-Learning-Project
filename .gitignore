@@ -1,9 +1,11 @@
 datasets/
+logs/
 docs/
 __pycache__/
 checkpoints/
 trained_models/
 *.pth
+*.sif
 .pytest_cache/
 .vscode
 .venv
