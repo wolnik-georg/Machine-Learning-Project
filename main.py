@@ -27,6 +27,7 @@ from src.utils.visualization import CIFAR10_CLASSES, show_batch
 from src.utils.seeds import set_random_seeds, get_worker_init_fn
 from src.utils.experiment import setup_run_directory, setup_logging, ExperimentTracker
 from src.utils.model_validation import ModelValidator
+from src.utils.load_weights import transfer_weights
 
 from config import (
     AUGMENTATION_CONFIG,
@@ -44,6 +45,14 @@ from config import (
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def get_swin_name():
+    variant = SWIN_CONFIG["variant"]            # "tiny", "small", "base", "large"
+    window = SWIN_CONFIG.get("window_size", 7)  # default 7
+    img = SWIN_CONFIG.get("img_size", 224)      # default 224
+
+    return f"swin_{variant}_patch4_window{window}_{img}"
 
 
 def setup_device():
@@ -98,7 +107,7 @@ def setup_model(device):
 
     if VALIDATION_CONFIG.get("enable_validation", False):
         # For validation, use ImageNet-compatible Swin-Tiny
-        from src.models.swin import swin_tiny_patch4_window7_224
+        from src.models import swin_tiny_patch4_window7_224
 
         model = swin_tiny_patch4_window7_224(num_classes=1000)  # ImageNet classes
         logger.info(
@@ -129,7 +138,7 @@ def setup_model(device):
         if DOWNSTREAM_CONFIG["head_type"] == "linear_classification":
             pred_head = LinearClassificationHead(
                 num_features=encoder.num_features,
-                num_classes=SWIN_CONFIG["num_classes"],
+                num_classes=DOWNSTREAM_CONFIG["num_classes"],
                 )
         else:
             raise AssertionError(f"Unknown head type: {DOWNSTREAM_CONFIG['head_type']}")
@@ -137,9 +146,15 @@ def setup_model(device):
         model = ModelWrapper(
             encoder=encoder,
             pred_head=pred_head,
-            freeze=TRAINING_CONFIG["freeze_encoder"],
+            freeze=DOWNSTREAM_CONFIG["freeze_encoder"],
             )
-        logger.info("Created SwinTransformerModel training.")  
+        logger.info("Created SwinTransformerModel training.")
+
+        if SWIN_CONFIG.get("pretrained_weights", False):
+            model_name = get_swin_name()
+            logger.info("Transferring weights from pretrained to custom model...")
+            transfer_stats = transfer_weights(model, encoder_only=True, model_name=model_name, device=device)
+            logger.info(f"Weight transfer completed: {transfer_stats}")
     else:
         input_dim = 3 * DATA_CONFIG["img_size"] * DATA_CONFIG["img_size"]
         model = SimpleModel(
@@ -167,8 +182,8 @@ def setup_training_components(model):
     criterion = nn.CrossEntropyLoss()
 
     params = (
-        model.head.parameters()
-        if TRAINING_CONFIG["freeze_encoder"]
+        model.pred_head.parameters()
+        if DOWNSTREAM_CONFIG["freeze_encoder"]
         else model.parameters()
         )
 
@@ -389,12 +404,12 @@ def save_final_model(model):
     )
 
 
-def validate_model_if_enabled(model, val_generator, run_dir):
+def validate_model_if_enabled(model, val_generator, run_dir, device):
     """Validate model implementation"""
     if not VALIDATION_CONFIG.get("enable_validation", False):
         return None
 
-    validator = ModelValidator(device=next(model.parameters()).device.type)
+    validator = ModelValidator(device=device)
     return validator.validate_model_implementation(
         custom_model=model,
         val_dataloader=val_generator,
@@ -435,7 +450,7 @@ def main():
     )
 
     # Validate model implementation
-    validation_results = validate_model_if_enabled(model, val_generator, run_dir)
+    validation_results = validate_model_if_enabled(model, val_generator, run_dir, device)
 
     criterion, optimizer, scheduler = setup_training_components(model)
     metrics_history, lr_history, mixup = initialize_metrics_tracking()
