@@ -90,7 +90,7 @@ def transfer_weights(
         if name in pretrained_state:
             pretrained_param = pretrained_state[name]
             if param.shape == pretrained_param.shape:
-                param.data.copy_(pretrained_param.data)
+                param.data.copy_(pretrained_param.data.to(param.device))
                 transferred += 1
             else:
                 size_mismatches.append(
