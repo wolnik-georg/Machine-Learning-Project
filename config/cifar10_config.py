@@ -31,7 +31,7 @@ SWIN_PRESETS = {
 
 SWIN_CONFIG = {
     "img_size": 224,  # Changed from 32 to 224
-    "variant": "base",
+    "variant": "tiny",  # Changed from "base" to match pretrained_model
     "pretrained_weights": True,
     "patch_size": 4,
     "embed_dim": None,
@@ -108,10 +108,15 @@ SCHEDULER_CONFIG = {
 }
 
 # Model Validation Configuration
+# Note: pretrained_model must match the variant in SWIN_CONFIG
+# tiny -> swin_tiny_patch4_window7_224 (num_features=768)
+# small -> swin_small_patch4_window7_224 (num_features=768)
+# base -> swin_base_patch4_window7_224 (num_features=1024)
+# large -> swin_large_patch4_window7_224 (num_features=1536)
 VALIDATION_CONFIG = {
     "enable_validation": False,
     "use_swin_transformer": True,
-    "pretrained_model": "swin_tiny_patch4_window7_224",
+    "pretrained_model": "swin_tiny_patch4_window7_224",  # Must match variant='tiny'
     "transfer_weights": True,
     "validation_samples": 1000,
 }

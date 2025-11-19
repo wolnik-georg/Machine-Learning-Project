@@ -106,12 +106,15 @@ def setup_model(device):
     logger.info("Initializing model...")
 
     if VALIDATION_CONFIG.get("enable_validation", False):
-        # For validation, use ImageNet-compatible Swin-Tiny
+        # For validation, use model matching the pretrained_model config
+        # Note: This creates a model with dataset-specific num_classes for validation
         from src.models import swin_tiny_patch4_window7_224
 
-        model = swin_tiny_patch4_window7_224(num_classes=1000)  # ImageNet classes
+        model = swin_tiny_patch4_window7_224(
+            num_classes=DOWNSTREAM_CONFIG["num_classes"]  # Use dataset-specific classes
+        )
         logger.info(
-            "Created Swin-Tiny model for validation against pretrained weights."
+            f"Created Swin-Tiny model for validation with {DOWNSTREAM_CONFIG['num_classes']} classes."
         )
     elif VALIDATION_CONFIG.get("use_swin_transformer", False):
         # For regular training, use CIFAR-10 Swin config
