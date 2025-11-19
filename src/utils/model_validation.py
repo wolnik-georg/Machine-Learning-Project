@@ -148,6 +148,14 @@ class ModelValidator:
             images, targets = images.to(self.device), targets.to(self.device)
             outputs = model(images)
 
+            # Handle potential shape issues with TIMM models (same as training)
+            if isinstance(outputs, tuple):
+                outputs = outputs[0]  # Take first output if tuple
+
+            # Ensure outputs are the right shape [batch_size, num_classes]
+            if outputs.dim() != 2:
+                outputs = outputs.view(outputs.size(0), -1)
+
             # Top-1 accuracy
             _, pred1 = outputs.topk(1, dim=1)
             correct_top1 += pred1.eq(targets.view_as(pred1)).sum().item()
