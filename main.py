@@ -105,17 +105,8 @@ def setup_model(device):
     """Initialize and setup the model."""
     logger.info("Initializing model...")
 
-    if VALIDATION_CONFIG.get("enable_validation", False):
-        # For validation, use ImageNet-compatible Swin-Tiny
-        from src.models import swin_tiny_patch4_window7_224
-
-        model = swin_tiny_patch4_window7_224(num_classes=1000)  # ImageNet classes
-        model = model.to(device)
-        logger.info(
-            "Created Swin-Tiny model for validation against pretrained weights."
-        )
-    elif VALIDATION_CONFIG.get("use_swin_transformer", False):
-        # For regular training, use CIFAR-10 Swin config
+    if VALIDATION_CONFIG.get("use_swin_transformer", False):
+        # For regular training, use CIFAR-100 Swin config
         from src.models import (
             SwinTransformerModel,
             ModelWrapper,
@@ -149,7 +140,7 @@ def setup_model(device):
             pred_head=pred_head,
             freeze=DOWNSTREAM_CONFIG["freeze_encoder"],
         )
-        logger.info("Created SwinTransformerModel training.")
+        logger.info("Created SwinTransformerModel for CIFAR-100 training.")
 
         # MOVE TO DEVICE FIRST, BEFORE any weight operations
         model = model.to(device)
@@ -179,6 +170,16 @@ def setup_model(device):
             logger.info(
                 f"After transfer - Encoder first layer device: {next(model.encoder.layers[0].parameters()).device}"
             )
+
+    elif VALIDATION_CONFIG.get("enable_validation", False):
+        # For validation ONLY, use ImageNet-compatible Swin-Tiny
+        from src.models import swin_tiny_patch4_window7_224
+
+        model = swin_tiny_patch4_window7_224(num_classes=1000)  # ImageNet classes
+        model = model.to(device)
+        logger.info(
+            "Created Swin-Tiny model for validation against pretrained weights."
+        )
 
     else:
         input_dim = 3 * DATA_CONFIG["img_size"] * DATA_CONFIG["img_size"]
