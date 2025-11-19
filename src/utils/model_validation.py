@@ -69,11 +69,54 @@ class ModelValidator:
 
         model.train()
 
+        # Debug: Check the first batch to understand tensor shapes
+        first_batch = True
+
         for epoch in range(num_epochs):
-            # Train one epoch
-            train_loss = train_one_epoch(
-                model, train_dataloader, criterion, optimizer, self.device
-            )
+            running_loss = 0.0
+
+            for batch_idx, (inputs, labels) in enumerate(train_dataloader):
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+
+                if first_batch:
+                    logger.info(
+                        f"Debug - Input shape: {inputs.shape}, Label shape: {labels.shape}"
+                    )
+                    first_batch = False
+
+                optimizer.zero_grad()
+                outputs = model(inputs)
+
+                if batch_idx == 0 and epoch == 0:
+                    logger.info(
+                        f"Debug - Model output type: {type(outputs)}, shape: {outputs.shape if hasattr(outputs, 'shape') else 'no shape'}"
+                    )
+
+                # Handle potential shape issues with TIMM models
+                if isinstance(outputs, tuple):
+                    outputs = outputs[0]  # Take first output if tuple
+
+                # Ensure outputs are the right shape [batch_size, num_classes]
+                if outputs.dim() != 2:
+                    logger.error(
+                        f"Unexpected output shape: {outputs.shape}, expected 2D tensor"
+                    )
+                    outputs = outputs.view(outputs.size(0), -1)
+
+                # Ensure labels are 1D [batch_size]
+                if labels.dim() != 1:
+                    logger.error(
+                        f"Unexpected label shape: {labels.shape}, expected 1D tensor"
+                    )
+                    labels = labels.view(-1)
+
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+
+                running_loss += loss.item()
+
+            train_loss = running_loss / len(train_dataloader)
 
             # Validate
             val_loss, val_accuracy, _ = evaluate_model(
