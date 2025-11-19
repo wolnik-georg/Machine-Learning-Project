@@ -114,7 +114,7 @@ SCHEDULER_CONFIG = {
 # base -> swin_base_patch4_window7_224 (num_features=1024)
 # large -> swin_large_patch4_window7_224 (num_features=1536)
 VALIDATION_CONFIG = {
-    "enable_validation": True,  # Enable for model validation
+    "enable_validation": False,  # Enable for model validation
     "use_swin_transformer": True,
     "pretrained_model": "swin_tiny_patch4_window7_224",  # Must match variant='tiny'
     "transfer_weights": True,
