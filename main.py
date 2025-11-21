@@ -532,6 +532,10 @@ def create_custom_model(
             )
 
         logger.info(f"Initializing custom Swin model (size: {model_size})...")
+
+        # Get preset configuration before using it in logging
+        preset = SWIN_PRESETS[model_size]
+
         logger.info(
             f"Custom model will match architecture: embed_dim={preset['embed_dim']}, depths={preset['depths']}, num_heads={preset['num_heads']}"
         )
@@ -543,8 +547,6 @@ def create_custom_model(
             "mlp_ratio": 4.0,
             "drop_path_rate": 0.1,
         }
-
-        preset = SWIN_PRESETS[model_size]
 
         cfg["embed_dim"] = preset["embed_dim"]
         cfg["depths"] = preset["depths"]
