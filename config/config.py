@@ -13,15 +13,6 @@ DATA_CONFIG = {
     "img_size": 224,  # Changed from 32 for ImageNet
 }
 
-# Model configuration
-MODEL_CONFIG = {
-    "input_dim": 3 * 224 * 224,  # Changed for ImageNet
-    "hidden_dims": [1024, 512, 256],  # Changed for ImageNet
-    "num_classes": 1000,  # Changed from 10 for ImageNet
-    "dropout_rate": 0.3,
-    "use_batch_norm": True,
-}
-
 SWIN_PRESETS = {
     "tiny": {"embed_dim": 96, "depths": [2, 2, 6, 2], "num_heads": [3, 6, 12, 24]},
     "small": {"embed_dim": 96, "depths": [2, 2, 18, 2], "num_heads": [3, 6, 12, 24]},
@@ -99,20 +90,9 @@ AUGMENTATION_CONFIG = {
     "std": [0.229, 0.224, 0.225],  # ImageNet std
 }
 
-# Scheduler configuration
-SCHEDULER_CONFIG = {
-    "use_scheduler": True,  # Enable for ImageNet training on cluster
-    "optimizer": "AdamW",
-    "lr": 0.0001,  # Changed for ImageNet
-    "weight_decay": 0.05,  # Changed for ImageNet
-    "warmup_epochs": 20,  # Changed for ImageNet
-    "total_epochs": 90,  # Changed for ImageNet
-}
-
 # Model Validation Configuration
 VALIDATION_CONFIG = {
     "enable_validation": False,  # Enable for Swin validation
-    "use_swin_transformer": True,
     "pretrained_model": "swin_tiny_patch4_window7_224",
     "transfer_weights": True,  # Transfer weights before comparison
     "validation_samples": 1000,  # Limit samples for faster validation

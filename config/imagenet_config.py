@@ -13,15 +13,6 @@ DATA_CONFIG = {
     "img_size": 224,
 }
 
-# Model configuration
-MODEL_CONFIG = {
-    "input_dim": 3 * 224 * 224,
-    "hidden_dims": [1024, 512, 256],
-    "num_classes": 1000,
-    "dropout_rate": 0.3,
-    "use_batch_norm": True,
-}
-
 SWIN_PRESETS = {
     "tiny": {"embed_dim": 96, "depths": [2, 2, 6, 2], "num_heads": [3, 6, 12, 24]},
     "small": {"embed_dim": 96, "depths": [2, 2, 18, 2], "num_heads": [3, 6, 12, 24]},
@@ -109,20 +100,9 @@ AUGMENTATION_CONFIG = {
     "std": [0.229, 0.224, 0.225],
 }
 
-# Scheduler configuration
-SCHEDULER_CONFIG = {
-    "use_scheduler": True,
-    "optimizer": "AdamW",
-    "lr": 0.0001,
-    "weight_decay": 0.05,
-    "warmup_epochs": 20,
-    "total_epochs": 90,
-}
-
 # Model Validation Configuration
 VALIDATION_CONFIG = {
     "enable_validation": False,
-    "use_swin_transformer": True,
     "pretrained_model": "swin_tiny_patch4_window7_224",
     "transfer_weights": True,
     "validation_samples": 50000,  # Full ImageNet validation

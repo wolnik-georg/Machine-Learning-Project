@@ -16,20 +16,18 @@ DATA_ROOT = "/home/space/datasets"
 
 def _load_config():
     """Load the appropriate config based on DATASET environment variable."""
-    global AUGMENTATION_CONFIG, DATA_CONFIG, SWIN_PRESETS, MODEL_CONFIG, DOWNSTREAM_CONFIG, TRAINING_CONFIG
-    global VIZ_CONFIG, SEED_CONFIG, SCHEDULER_CONFIG, VALIDATION_CONFIG, SWIN_CONFIG
+    global AUGMENTATION_CONFIG, DATA_CONFIG, SWIN_PRESETS, DOWNSTREAM_CONFIG, TRAINING_CONFIG
+    global VIZ_CONFIG, SEED_CONFIG, VALIDATION_CONFIG, SWIN_CONFIG
 
     if DATASET == "cifar10":
         from .cifar10_config import (
             AUGMENTATION_CONFIG,
             DATA_CONFIG,
             SWIN_PRESETS,
-            MODEL_CONFIG,
             DOWNSTREAM_CONFIG,
             TRAINING_CONFIG,
             VIZ_CONFIG,
             SEED_CONFIG,
-            SCHEDULER_CONFIG,
             VALIDATION_CONFIG,
             SWIN_CONFIG,
         )
@@ -38,12 +36,10 @@ def _load_config():
             AUGMENTATION_CONFIG,
             DATA_CONFIG,
             SWIN_PRESETS,
-            MODEL_CONFIG,
             DOWNSTREAM_CONFIG,
             TRAINING_CONFIG,
             VIZ_CONFIG,
             SEED_CONFIG,
-            SCHEDULER_CONFIG,
             VALIDATION_CONFIG,
             SWIN_CONFIG,
         )
@@ -52,12 +48,10 @@ def _load_config():
             AUGMENTATION_CONFIG,
             DATA_CONFIG,
             SWIN_PRESETS,
-            MODEL_CONFIG,
             DOWNSTREAM_CONFIG,
             TRAINING_CONFIG,
             VIZ_CONFIG,
             SEED_CONFIG,
-            SCHEDULER_CONFIG,
             VALIDATION_CONFIG,
             SWIN_CONFIG,
         )
@@ -88,11 +82,10 @@ __all__ = [
     "AUGMENTATION_CONFIG",
     "DATA_CONFIG",
     "SWIN_PRESETS",
-    "MODEL_CONFIG",
-    "DOWNSTREAM_CONFIG" "TRAINING_CONFIG",
+    "DOWNSTREAM_CONFIG",
+    "TRAINING_CONFIG",
     "VIZ_CONFIG",
     "SEED_CONFIG",
-    "SCHEDULER_CONFIG",
     "VALIDATION_CONFIG",
     "SWIN_CONFIG",
     "get_pretrained_swin_name",

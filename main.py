@@ -4,7 +4,7 @@ Main orchestration file for the machine learning pipeline.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Union, Any
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -19,7 +19,6 @@ from src.models import (
     SwinTransformerModel,
     ModelWrapper,
     LinearClassificationHead,
-    SimpleModel,
 )
 
 from src.training import evaluate_model, run_training_loop
@@ -32,7 +31,7 @@ from src.training.metrics import (
 )
 from src.training.trainer import Mixup
 
-from src.utils.visualization import CIFAR10_CLASSES, show_batch
+from src.utils.visualization import show_batch
 from src.utils.seeds import set_random_seeds, get_worker_init_fn
 from src.utils.experiment import setup_run_directory, setup_logging, ExperimentTracker
 from src.utils.model_validation import ModelValidator
@@ -42,12 +41,10 @@ from config import (
     AUGMENTATION_CONFIG,
     DATA_CONFIG,
     SWIN_PRESETS,
-    MODEL_CONFIG,
     DOWNSTREAM_CONFIG,
     TRAINING_CONFIG,
     VIZ_CONFIG,
     SEED_CONFIG,
-    SCHEDULER_CONFIG,
     VALIDATION_CONFIG,
 )
 
@@ -230,8 +227,8 @@ def setup_model(device):
         logger.info(
             "Created Swin-Tiny model for validation against pretrained weights."
         )
-    elif VALIDATION_CONFIG.get("use_swin_transformer", False):
-        # For regular training, use CIFAR-10 Swin config
+    else:
+        # For regular training, use Swin Transformer config
         from src.models import (
             SwinTransformerModel,
             ModelWrapper,
@@ -274,21 +271,6 @@ def setup_model(device):
                 model, encoder_only=True, model_name=model_name, device=device
             )
             logger.info(f"Weight transfer completed: {transfer_stats}")
-    else:
-        input_dim = 3 * DATA_CONFIG["img_size"] * DATA_CONFIG["img_size"]
-        model = SimpleModel(
-            input_dim=input_dim,
-            hidden_dims=MODEL_CONFIG["hidden_dims"],
-            num_classes=MODEL_CONFIG["num_classes"],
-            dropout_rate=MODEL_CONFIG["dropout_rate"],
-            use_batch_norm=MODEL_CONFIG["use_batch_norm"],
-        ).to(device)
-
-        # Print model architecture
-        logger.info(
-            f"Model architecture: Input({MODEL_CONFIG['input_dim']}) -> "
-            f"Hidden{MODEL_CONFIG['hidden_dims']} -> Output({MODEL_CONFIG['num_classes']})"
-        )
     logger.info(
         f"Total parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}"
     )

@@ -13,15 +13,6 @@ DATA_CONFIG = {
     "img_size": 224,  # Changed from 32 to 224 for ImageNet compatibility
 }
 
-# Model configuration
-MODEL_CONFIG = {
-    "input_dim": 3 * 224 * 224,  # Updated for 224x224 images
-    "hidden_dims": [512, 256, 128],
-    "num_classes": 10,
-    "dropout_rate": 0.3,
-    "use_batch_norm": True,
-}
-
 SWIN_PRESETS = {
     "tiny": {"embed_dim": 96, "depths": [2, 2, 6, 2], "num_heads": [3, 6, 12, 24]},
     "small": {"embed_dim": 96, "depths": [2, 2, 18, 2], "num_heads": [3, 6, 12, 24]},
@@ -109,20 +100,9 @@ AUGMENTATION_CONFIG = {
     "std": [0.229, 0.224, 0.225],  # ImageNet std (works for CIFAR too)
 }
 
-# Scheduler configuration
-SCHEDULER_CONFIG = {
-    "use_scheduler": False,
-    "optimizer": "AdamW",
-    "lr": 0.001,
-    "weight_decay": 1e-4,
-    "warmup_epochs": 2,
-    "total_epochs": 20,
-}
-
 # Model Validation Configuration
 VALIDATION_CONFIG = {
     "enable_validation": False,
-    "use_swin_transformer": True,
     "pretrained_model": "swin_tiny_patch4_window7_224",
     "transfer_weights": True,
     "validation_samples": 1000,
