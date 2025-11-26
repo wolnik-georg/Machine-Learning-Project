@@ -7,6 +7,8 @@ from .base_config import (
     VIZ_CONFIG,
     SEED_CONFIG,
     apply_swin_preset,
+    TrainingMode,
+    get_training_mode_settings,
 )
 
 # Data configuration
@@ -24,7 +26,6 @@ DATA_CONFIG = {
 SWIN_CONFIG = {
     "img_size": 224,
     "variant": "tiny",  # Choose: "tiny", "small", "base", "large"
-    "pretrained_weights": True,
     "patch_size": 4,
     "embed_dim": None,  # Auto-set from preset
     "depths": None,  # Auto-set from preset
@@ -40,16 +41,22 @@ SWIN_CONFIG = {
 # Apply preset values for None fields
 apply_swin_preset(SWIN_CONFIG, SWIN_PRESETS)
 
-# Downstream task configuration
+# =============================================================================
+# Downstream Task Configuration
+# =============================================================================
+# Training mode: "linear_probe" or "from_scratch"
+_TRAINING_MODE = TrainingMode.LINEAR_PROBE
+_mode_settings = get_training_mode_settings(_TRAINING_MODE)
+
 DOWNSTREAM_CONFIG = {
-    "mode": "linear_probe",
+    "mode": _TRAINING_MODE,
     "head_type": "linear_classification",
     "num_classes": 100,
     "hidden_dim": None,
+    # Auto-set based on mode
+    "freeze_encoder": _mode_settings["freeze_encoder"],
+    "use_pretrained": _mode_settings["use_pretrained"],
 }
-
-# Auto-set freeze based on mode
-DOWNSTREAM_CONFIG["freeze_encoder"] = DOWNSTREAM_CONFIG["mode"] == "linear_probe"
 
 # Training configuration
 TRAINING_CONFIG = {

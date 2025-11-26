@@ -3,7 +3,55 @@ Base configuration shared across all datasets.
 Contains settings that are identical regardless of dataset choice.
 """
 
-# Swin Transformer architecture presets (identical for all datasets)
+
+# =============================================================================
+# Training Mode Constants
+# =============================================================================
+class TrainingMode:
+    """
+    Training modes for the pipeline.
+
+    LINEAR_PROBE: Load pretrained weights, freeze encoder, train only classification head.
+                  Used for validating model implementation matches reference (milestone 1).
+
+    FROM_SCRATCH: Random initialization, train full model.
+                  Used for training our own baseline model (milestone 2).
+    """
+
+    LINEAR_PROBE = "linear_probe"
+    FROM_SCRATCH = "from_scratch"
+
+
+def get_training_mode_settings(mode: str) -> dict:
+    """
+    Get default settings based on training mode.
+
+    Args:
+        mode: One of TrainingMode constants
+
+    Returns:
+        Dictionary with freeze_encoder and use_pretrained settings
+    """
+    settings = {
+        TrainingMode.LINEAR_PROBE: {
+            "freeze_encoder": True,
+            "use_pretrained": True,
+        },
+        TrainingMode.FROM_SCRATCH: {
+            "freeze_encoder": False,
+            "use_pretrained": False,
+        },
+    }
+    if mode not in settings:
+        raise ValueError(
+            f"Unknown training mode: {mode}. " f"Choose from: {list(settings.keys())}"
+        )
+    return settings[mode]
+
+
+# =============================================================================
+# Swin Transformer Presets
+# =============================================================================
 SWIN_PRESETS = {
     "tiny": {"embed_dim": 96, "depths": [2, 2, 6, 2], "num_heads": [3, 6, 12, 24]},
     "small": {"embed_dim": 96, "depths": [2, 2, 18, 2], "num_heads": [3, 6, 12, 24]},
@@ -11,19 +59,24 @@ SWIN_PRESETS = {
     "large": {"embed_dim": 192, "depths": [2, 2, 18, 2], "num_heads": [6, 12, 24, 48]},
 }
 
-# Visualization configuration (identical for all datasets)
+
+# =============================================================================
+# Shared Configurations
+# =============================================================================
 VIZ_CONFIG = {
     "figsize": (10, 10),
     "output_file": "visualization.png",
 }
 
-# Seed configuration for reproducibility (identical for all datasets)
 SEED_CONFIG = {
     "seed": 42,
     "deterministic": False,
 }
 
 
+# =============================================================================
+# Helper Functions
+# =============================================================================
 def get_pretrained_swin_name(swin_config: dict) -> str:
     """
     Generate TIMM model name based on SWIN_CONFIG.

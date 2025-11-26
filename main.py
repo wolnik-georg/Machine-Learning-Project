@@ -46,6 +46,7 @@ from config import (
     VIZ_CONFIG,
     SEED_CONFIG,
     VALIDATION_CONFIG,
+    TrainingMode,
 )
 
 from src.utils.visualization import CIFAR100_CLASSES
@@ -264,13 +265,17 @@ def setup_model(device):
         )
         logger.info("Created SwinTransformerModel training.")
 
-        if SWIN_CONFIG.get("pretrained_weights", False):
+        # Load pretrained weights if configured (for linear probing)
+        if DOWNSTREAM_CONFIG["use_pretrained"]:
             model_name = get_swin_name()
             logger.info("Transferring weights from pretrained to custom model...")
             transfer_stats = transfer_weights(
                 model, encoder_only=True, model_name=model_name, device=device
             )
             logger.info(f"Weight transfer completed: {transfer_stats}")
+        else:
+            logger.info("Training from scratch - no pretrained weights loaded")
+
     logger.info(
         f"Total parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}"
     )
@@ -281,11 +286,25 @@ def setup_model(device):
 def setup_training_components(
     model: nn.Module, total_epochs: int, warmup_epochs: int, learning_rate
 ):
-    """Setup optimizer, scheduler, and loss criterion for linear probing."""
+    """Setup optimizer, scheduler, and loss criterion.
+
+    For linear probing (freeze_encoder=True): only train the classification head.
+    For fine-tuning/from-scratch (freeze_encoder=False): train the full model.
+    """
     criterion = nn.CrossEntropyLoss()
 
+    # Select parameters to train based on mode
+    if DOWNSTREAM_CONFIG["freeze_encoder"]:
+        # Linear probing: only train the head
+        params_to_train = model.pred_head.parameters()
+        logger.info("Optimizer: training head parameters only (encoder frozen)")
+    else:
+        # Fine-tuning or from-scratch: train full model
+        params_to_train = model.parameters()
+        logger.info("Optimizer: training all model parameters")
+
     optimizer = torch.optim.AdamW(
-        model.pred_head.parameters(),
+        params_to_train,
         lr=learning_rate,
         weight_decay=TRAINING_CONFIG["weight_decay"],
     )
@@ -478,12 +497,13 @@ def create_reference_model(pretrained_model: str, device: torch.device) -> nn.Mo
         model = ModelWrapper(
             encoder=encoder,
             pred_head=pred_head,
-            freeze=True,  # freeze encoder, train head only
+            freeze=DOWNSTREAM_CONFIG["freeze_encoder"],
         )
 
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        mode_desc = "head only" if DOWNSTREAM_CONFIG["freeze_encoder"] else "full model"
         logger.info(
-            f"Reference model created. Trainable params (head only): {trainable_params:,}"
+            f"Reference model created. Trainable params ({mode_desc}): {trainable_params:,}"
         )
 
         return model.to(device)
@@ -566,7 +586,7 @@ def create_custom_model(
         model = ModelWrapper(
             encoder=encoder,
             pred_head=pred_head,
-            freeze=True,  # linear probe: freeze encoder
+            freeze=DOWNSTREAM_CONFIG["freeze_encoder"],
         )
 
         logger.info("Transferring weights from reference to custom encoder...")
@@ -594,8 +614,9 @@ def create_custom_model(
         if trainable_params == 0:
             logger.warning("No trainable parameters found in model")
 
+        mode_desc = "head only" if DOWNSTREAM_CONFIG["freeze_encoder"] else "full model"
         logger.info(
-            f"Custom model created. Trainable params (head only): {trainable_params:,}"
+            f"Custom model created. Trainable params ({mode_desc}): {trainable_params:,}"
         )
         return model.to(device)
 
@@ -689,115 +710,88 @@ def _finalize_validation(
     return final_test_metrics
 
 
-def main():
-    """Main training pipeline."""
-    try:
-        logger.info("Starting linear probing experiment...")
+def _run_linear_probing(
+    train_generator,
+    val_generator,
+    test_generator,
+    total_epochs,
+    warmup_epochs,
+    learning_rate,
+    device,
+    run_dir,
+):
+    """
+    Run linear probing experiment: compare reference (TIMM) vs custom model.
 
-        # Validate configuration before proceeding
-        validate_configuration()
+    Both models use pretrained weights with frozen encoder, training only the head.
+    This validates that our custom Swin implementation matches the official one.
+    """
+    from config import get_pretrained_swin_name, SWIN_CONFIG
 
-        # Setup run directory and logging first
-        run_dir = setup_run_directory()
-        setup_logging(run_dir)
-        logger.info(f"Experiment directory: {run_dir}")
+    pretrained_model = get_pretrained_swin_name()
+    validate_pretrained_model_name(pretrained_model)
 
-        # Initialize experiment tracker
-        tracker = ExperimentTracker(run_dir)
+    logger.info(f"Using pretrained model: {pretrained_model}")
+    logger.info(f"Model architecture: Swin-{SWIN_CONFIG['variant'].title()}")
 
-        # Set random seeds first to ensure reproducibility
-        logger.info(
-            f"Setting random seeds for reproducibility (seed: {SEED_CONFIG['seed']})..."
-        )
-        set_random_seeds(
-            seed=SEED_CONFIG["seed"], deterministic=SEED_CONFIG["deterministic"]
-        )
+    # Create reference model (TIMM pretrained)
+    reference_model = create_reference_model(pretrained_model, device)
 
-        # Setup components
-        logger.info("Setting up device...")
-        device = setup_device()
-        logger.info(f"Using device: {device}")
+    # Create custom model and transfer weights from reference
+    custom_model = None
+    if pretrained_model.lower().startswith("swin"):
+        logger.info("Detected Swin Transformer architecture")
+        model_size = None
+        for p in pretrained_model.lower().split("_"):
+            if p in SWIN_PRESETS:
+                model_size = p
+                break
 
-        # Get training parameters from config (with fallbacks for missing keys)
-        total_epochs = TRAINING_CONFIG.get("num_epochs", 50)
-        warmup_epochs = TRAINING_CONFIG.get(
-            "warmup_epochs", 2
-        )  # Add this to config if needed
-        learning_rate = TRAINING_CONFIG.get("learning_rate", 0.001)
-
-        # Validate training parameters
-        validate_training_parameters(total_epochs, warmup_epochs, learning_rate)
-        logger.info(
-            f"Training configuration: epochs={total_epochs}, warmup={warmup_epochs}, lr={learning_rate}"
-        )
-
-        # Get pretrained model from config (automatically matches current dataset)
-        from config import get_pretrained_swin_name, SWIN_CONFIG
-
-        pretrained_model = get_pretrained_swin_name()
-        # Alternative: uncomment for ResNet50
-        # pretrained_model = "resnet50"
-
-        validate_pretrained_model_name(pretrained_model)
-        logger.info(f"Using pretrained model: {pretrained_model}")
-        logger.info(f"Model architecture: Swin-{SWIN_CONFIG['variant'].title()}")
-        logger.info(
-            f"Model config: embed_dim={SWIN_CONFIG['embed_dim']}, depths={SWIN_CONFIG['depths']}, num_heads={SWIN_CONFIG['num_heads']}"
-        )
-        logger.info(
-            f"Image size: {SWIN_CONFIG['img_size']}x{SWIN_CONFIG['img_size']}, patch_size: {SWIN_CONFIG['patch_size']}x{SWIN_CONFIG['patch_size']}"
-        )
-
-        logger.info("Loading dataset...")
-        train_generator, val_generator, test_generator = load_data(
-            dataset="CIFAR100",
-            use_batch_for_val=True,
-            val_batch=5,
-            batch_size=32,
-            num_workers=4,
-            root="./datasets",
-            img_size=224,
-            worker_init_fn=get_worker_init_fn(42),
-        )
-        logger.info(
-            f"Dataset loaded: train={len(train_generator)}, val={len(val_generator)}, test={len(test_generator)} batches"
-        )
-
-        # Create models with error handling
-        reference_model = create_reference_model(pretrained_model, device)
-
-        custom_model = None
-        if pretrained_model.lower().startswith("swin"):
-            logger.info("Detected Swin Transformer architecture")
-            logger.info("Extracting model size from TIMM model name...")
-            model_size = None
-
-            for p in pretrained_model.lower().split("_"):
-                if p in SWIN_PRESETS:
-                    model_size = p
-                    break
-
-            if model_size is None:
-                raise ValueError(
-                    f"Could not detect model size from '{pretrained_model}'. Available sizes: {list(SWIN_PRESETS.keys())}"
-                )
-
-            logger.info(f"Detected model size: {model_size}")
-            logger.info(f"Will create custom model with: {SWIN_PRESETS[model_size]}")
-            custom_model = create_custom_model(reference_model, model_size, device)
-        else:
-            logger.info(f"Non-Swin architecture detected: {pretrained_model}")
-            logger.info(
-                "Skipping custom model creation (only reference model will be trained)"
+        if model_size is None:
+            raise ValueError(
+                f"Could not detect model size from '{pretrained_model}'. "
+                f"Available sizes: {list(SWIN_PRESETS.keys())}"
             )
 
-        reference_tracker = ExperimentTracker(run_dir)
+        logger.info(f"Detected model size: {model_size}")
+        custom_model = create_custom_model(reference_model, model_size, device)
 
-        # 3) Train & collect best validation accuracies
-        logger.info("Starting reference model training...")
-        reference_criterion, reference_lr_history, reference_metrics_history = (
+    # Train reference model
+    reference_tracker = ExperimentTracker(run_dir)
+    logger.info("Starting reference model training...")
+    reference_criterion, reference_lr_history, reference_metrics_history = (
+        _train_single_model(
+            reference_model,
+            train_generator,
+            val_generator,
+            test_generator,
+            total_epochs,
+            warmup_epochs,
+            learning_rate,
+            device,
+        )
+    )
+    logger.info("Reference model training completed!")
+
+    final_reference_metrics = _finalize_validation(
+        reference_model,
+        "reference",
+        test_generator,
+        reference_criterion,
+        reference_lr_history,
+        reference_metrics_history,
+        device,
+        run_dir,
+        reference_tracker,
+    )
+
+    # Train custom model and compare
+    if custom_model is not None:
+        custom_tracker = ExperimentTracker(run_dir)
+        logger.info("Starting custom model training...")
+        custom_criterion, custom_lr_history, custom_metrics_history = (
             _train_single_model(
-                reference_model,
+                custom_model,
                 train_generator,
                 val_generator,
                 test_generator,
@@ -807,70 +801,175 @@ def main():
                 device,
             )
         )
+        logger.info("Custom model training completed!")
 
-        logger.info("Reference model training completed!")
-
-        final_reference_metrics = _finalize_validation(
-            reference_model,
-            "reference",
+        final_custom_metrics = _finalize_validation(
+            custom_model,
+            "custom",
             test_generator,
-            reference_criterion,
-            reference_lr_history,
-            reference_metrics_history,
+            custom_criterion,
+            custom_lr_history,
+            custom_metrics_history,
             device,
             run_dir,
-            reference_tracker,
+            custom_tracker,
         )
 
-        if pretrained_model.lower().startswith("swin") and custom_model is not None:
+        # Compare results
+        diff = abs(
+            final_reference_metrics["accuracy"] - final_custom_metrics["accuracy"]
+        )
+        dataset = DATA_CONFIG.get("dataset", "dataset")
+        logger.info(
+            f"=== MODEL COMPARISON RESULTS (linear_probe on {dataset.upper()}) ==="
+        )
+        logger.info(f"Reference (TIMM): {final_reference_metrics['accuracy']:.2f}%")
+        logger.info(f"Custom          : {final_custom_metrics['accuracy']:.2f}%")
+        logger.info(f"Difference      : {diff:.2f}%")
+    else:
+        logger.info("Only reference model trained (non-Swin architecture)")
 
-            custom_tracker = ExperimentTracker(run_dir)
 
-            logger.info("Starting custom model training...")
-            custom_criterion, custom_lr_history, custom_metrics_history = (
-                _train_single_model(
-                    custom_model,
-                    train_generator,
-                    val_generator,
-                    test_generator,
-                    total_epochs,
-                    warmup_epochs,
-                    learning_rate,
-                    device,
-                )
-            )
+def _run_from_scratch(
+    train_generator,
+    val_generator,
+    test_generator,
+    total_epochs,
+    warmup_epochs,
+    learning_rate,
+    device,
+    run_dir,
+):
+    """
+    Run from-scratch training: train custom Swin model without pretrained weights.
 
-            logger.info("Custom model training completed!")
+    No reference model, no comparison - just train our model from random initialization.
+    """
+    from config import SWIN_CONFIG
 
-            final_custom_metrics = _finalize_validation(
-                custom_model,
-                "custom",
+    logger.info(f"Training Swin-{SWIN_CONFIG['variant'].title()} from scratch")
+    logger.info(
+        f"Model config: embed_dim={SWIN_CONFIG['embed_dim']}, "
+        f"depths={SWIN_CONFIG['depths']}, num_heads={SWIN_CONFIG['num_heads']}"
+    )
+
+    # Create model using setup_model (respects DOWNSTREAM_CONFIG)
+    model = setup_model(device)
+    model = model.to(device)
+
+    # Train
+    tracker = ExperimentTracker(run_dir)
+    logger.info("Starting from-scratch training...")
+    criterion, lr_history, metrics_history = _train_single_model(
+        model,
+        train_generator,
+        val_generator,
+        test_generator,
+        total_epochs,
+        warmup_epochs,
+        learning_rate,
+        device,
+    )
+    logger.info("Training completed!")
+
+    # Finalize
+    final_metrics = _finalize_validation(
+        model,
+        "from_scratch",
+        test_generator,
+        criterion,
+        lr_history,
+        metrics_history,
+        device,
+        run_dir,
+        tracker,
+    )
+
+    dataset = DATA_CONFIG.get("dataset", "dataset")
+    logger.info(f"=== FROM-SCRATCH RESULTS ({dataset.upper()}) ===")
+    logger.info(f"Final Accuracy: {final_metrics['accuracy']:.2f}%")
+    logger.info(f"Final F1 Score: {final_metrics['f1_score']:.2f}%")
+
+
+def main():
+    """Main training pipeline."""
+    try:
+        mode = DOWNSTREAM_CONFIG["mode"]
+        logger.info(f"Starting {mode} experiment...")
+
+        # Validate configuration before proceeding
+        validate_configuration()
+
+        # Setup run directory and logging first
+        run_dir = setup_run_directory()
+        setup_logging(run_dir)
+        logger.info(f"Experiment directory: {run_dir}")
+
+        # Set random seeds for reproducibility
+        logger.info(
+            f"Setting random seeds for reproducibility (seed: {SEED_CONFIG['seed']})..."
+        )
+        set_random_seeds(
+            seed=SEED_CONFIG["seed"], deterministic=SEED_CONFIG["deterministic"]
+        )
+
+        # Setup device
+        device = setup_device()
+
+        # Get training parameters from config
+        total_epochs = TRAINING_CONFIG.get("num_epochs", 50)
+        warmup_epochs = TRAINING_CONFIG.get("warmup_epochs", 2)
+        learning_rate = TRAINING_CONFIG.get("learning_rate", 0.001)
+
+        validate_training_parameters(total_epochs, warmup_epochs, learning_rate)
+        logger.info(
+            f"Training configuration: epochs={total_epochs}, warmup={warmup_epochs}, lr={learning_rate}"
+        )
+
+        # Load dataset
+        logger.info("Loading dataset...")
+        train_generator, val_generator, test_generator = load_data(
+            dataset=DATA_CONFIG["dataset"],
+            use_batch_for_val=DATA_CONFIG.get("use_batch_for_val", True),
+            val_batch=DATA_CONFIG.get("val_batch", 5),
+            batch_size=DATA_CONFIG["batch_size"],
+            num_workers=DATA_CONFIG["num_workers"],
+            root=DATA_CONFIG["root"],
+            img_size=DATA_CONFIG["img_size"],
+            worker_init_fn=get_worker_init_fn(SEED_CONFIG["seed"]),
+        )
+        logger.info(
+            f"Dataset loaded: train={len(train_generator)}, "
+            f"val={len(val_generator)}, test={len(test_generator)} batches"
+        )
+
+        # Run mode-specific training pipeline
+        if mode == TrainingMode.LINEAR_PROBE:
+            _run_linear_probing(
+                train_generator,
+                val_generator,
                 test_generator,
-                custom_criterion,
-                custom_lr_history,
-                custom_metrics_history,
+                total_epochs,
+                warmup_epochs,
+                learning_rate,
                 device,
                 run_dir,
-                custom_tracker,
             )
-
-            diff = abs(
-                final_reference_metrics["accuracy"] - final_custom_metrics["accuracy"]
+        elif mode == TrainingMode.FROM_SCRATCH:
+            _run_from_scratch(
+                train_generator,
+                val_generator,
+                test_generator,
+                total_epochs,
+                warmup_epochs,
+                learning_rate,
+                device,
+                run_dir,
             )
-
-            # 4) Log + save
-            logger.info(
-                "=== MODEL COMPARISON RESULTS (Linear Probing on CIFAR-100) ==="
-            )
-            logger.info(f"Reference (HF): {final_reference_metrics['accuracy']:.2f}%")
-            logger.info(f"Custom        : {final_custom_metrics['accuracy']:.2f}%")
-            logger.info(f"Difference    : {diff:.2f}% (custom - reference)")
         else:
-            logger.info(
-                "Only reference model training completed (no custom model for non-Swin architectures)"
-            )
+            raise ValueError(f"Unknown training mode: {mode}")
 
-        logger.info("Linear probing experiment completed successfully!")
+        logger.info(f"{mode} experiment completed successfully!")
 
     except KeyboardInterrupt:
         logger.warning("Experiment interrupted by user")
@@ -878,7 +977,7 @@ def main():
     except Exception as e:
         logger.error(f"Experiment failed with error: {e}")
         logger.exception("Full traceback:")
-        raise RuntimeError(f"Linear probing experiment failed: {e}") from e
+        raise RuntimeError(f"Experiment failed: {e}") from e
 
 
 if __name__ == "__main__":

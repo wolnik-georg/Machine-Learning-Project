@@ -6,6 +6,7 @@ from .base_config import (
     SWIN_PRESETS,
     VIZ_CONFIG,
     SEED_CONFIG,
+    TrainingMode,
     get_pretrained_swin_name as _get_pretrained_swin_name,
 )
 
@@ -81,5 +82,6 @@ __all__ = [
     "SEED_CONFIG",
     "VALIDATION_CONFIG",
     "SWIN_CONFIG",
+    "TrainingMode",
     "get_pretrained_swin_name",
 ]
