@@ -5,6 +5,8 @@ Contains setup functions, reporting, and validation that are common across
 linear probing and from-scratch training.
 """
 
+from datetime import datetime
+import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -191,8 +193,25 @@ def generate_reports(
     return final_test_metrics
 
 
-def save_final_model(model, variant):
+def save_final_model(model, variant, run_dir=None, config=None):
     """Save the final trained model weights."""
-    save_model_weights(
-        model, f"trained_models/CIFAR100_final_model_{variant}_weights.pth"
-    )
+    if run_dir:
+        weights_path = run_dir / f"final_model_{variant}_weights.pth"
+        metadata_path = run_dir / f"final_model_{variant}_metadata.json"
+    else:
+        weights_path = f"trained_models/final_model_{variant}_weights.pth"
+        metadata_path = f"trained_models/final_model_{variant}_metadata.json"
+
+    metadata = {
+        "timestamp": datetime.now().isoformat(),
+        "variant": variant,
+        "config": config or {},
+    }
+
+    save_model_weights(model, str(weights_path), metadata=metadata)
+
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    logger.info(f"Final model saved: {weights_path}")
+    logger.info(f"Final model metadata saved: {metadata_path}")

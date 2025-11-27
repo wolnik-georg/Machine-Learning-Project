@@ -65,6 +65,8 @@ TRAINING_CONFIG = {
     "warmup_epochs": 0,
     "warmup_start_factor": 0.1,  # LR multiplier at start of warmup
     "weight_decay": 1e-4,
+    "checkpoint_frequency": 10,
+    "resume_from_checkpoint": None,
 }
 
 # Augmentation configuration
