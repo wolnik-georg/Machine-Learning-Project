@@ -188,8 +188,8 @@ def compare_experiments(run_ids: List[str], metric: str) -> pd.DataFrame:
             .get("DATA_CONFIG", {})
             .get("dataset", "unknown"),
             "model": data.get("config", {})
-            .get("MODEL_CONFIG", {})
-            .get("model_name", "unknown"),
+            .get("SWIN_CONFIG", {})
+            .get("variant", "unknown"),
         }
 
         # Add final metric

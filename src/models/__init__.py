@@ -1,4 +1,3 @@
-from .simple_model import SimpleModel
 from .swin import PatchEmbed
 from .swin import SwinTransformerModel
 from .heads import LinearClassificationHead
@@ -13,7 +12,6 @@ from .model_wrapper import (
 
 
 __all__ = [
-    "SimpleModel",
     "PatchEmbed",
     "SwinTransformerModel",
     "LinearClassificationHead",

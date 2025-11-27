@@ -2,13 +2,21 @@
 Configuration module for the ML pipeline.
 """
 
+from .base_config import (
+    SWIN_PRESETS,
+    VIZ_CONFIG,
+    SEED_CONFIG,
+    TrainingMode,
+    get_pretrained_swin_name as _get_pretrained_swin_name,
+)
+
 # Dataset selection - choose one dataset
 # DATASET = "cifar10"
 DATASET = "cifar100"
 # DATASET = "imagenet"
 
 # Data root configuration - choose one based on environment
-# # For local development:
+# For local development:
 # DATA_ROOT = "./datasets"
 # For cluster:
 DATA_ROOT = "/home/space/datasets"
@@ -16,20 +24,15 @@ DATA_ROOT = "/home/space/datasets"
 
 def _load_config():
     """Load the appropriate config based on DATASET environment variable."""
-    global AUGMENTATION_CONFIG, DATA_CONFIG, SWIN_PRESETS, MODEL_CONFIG, DOWNSTREAM_CONFIG, TRAINING_CONFIG
-    global VIZ_CONFIG, SEED_CONFIG, SCHEDULER_CONFIG, VALIDATION_CONFIG, SWIN_CONFIG
+    global AUGMENTATION_CONFIG, DATA_CONFIG, DOWNSTREAM_CONFIG, TRAINING_CONFIG
+    global VALIDATION_CONFIG, SWIN_CONFIG
 
     if DATASET == "cifar10":
         from .cifar10_config import (
             AUGMENTATION_CONFIG,
             DATA_CONFIG,
-            SWIN_PRESETS,
-            MODEL_CONFIG,
             DOWNSTREAM_CONFIG,
             TRAINING_CONFIG,
-            VIZ_CONFIG,
-            SEED_CONFIG,
-            SCHEDULER_CONFIG,
             VALIDATION_CONFIG,
             SWIN_CONFIG,
         )
@@ -37,13 +40,8 @@ def _load_config():
         from .cifar100_config import (
             AUGMENTATION_CONFIG,
             DATA_CONFIG,
-            SWIN_PRESETS,
-            MODEL_CONFIG,
             DOWNSTREAM_CONFIG,
             TRAINING_CONFIG,
-            VIZ_CONFIG,
-            SEED_CONFIG,
-            SCHEDULER_CONFIG,
             VALIDATION_CONFIG,
             SWIN_CONFIG,
         )
@@ -51,13 +49,8 @@ def _load_config():
         from .imagenet_config import (
             AUGMENTATION_CONFIG,
             DATA_CONFIG,
-            SWIN_PRESETS,
-            MODEL_CONFIG,
             DOWNSTREAM_CONFIG,
             TRAINING_CONFIG,
-            VIZ_CONFIG,
-            SEED_CONFIG,
-            SCHEDULER_CONFIG,
             VALIDATION_CONFIG,
             SWIN_CONFIG,
         )
@@ -74,26 +67,21 @@ def _load_config():
 _load_config()
 
 
-# Generate pretrained model name based on Swin variant
 def get_pretrained_swin_name():
-    """Generate TIMM model name based on SWIN_CONFIG variant."""
-    variant = SWIN_CONFIG["variant"]
-    patch_size = SWIN_CONFIG["patch_size"]
-    window_size = SWIN_CONFIG["window_size"]
-    img_size = SWIN_CONFIG["img_size"]
-    return f"swin_{variant}_patch{patch_size}_window{window_size}_{img_size}"
+    """Generate TIMM model name based on current SWIN_CONFIG."""
+    return _get_pretrained_swin_name(SWIN_CONFIG)
 
 
 __all__ = [
     "AUGMENTATION_CONFIG",
     "DATA_CONFIG",
     "SWIN_PRESETS",
-    "MODEL_CONFIG",
-    "DOWNSTREAM_CONFIG" "TRAINING_CONFIG",
+    "DOWNSTREAM_CONFIG",
+    "TRAINING_CONFIG",
     "VIZ_CONFIG",
     "SEED_CONFIG",
-    "SCHEDULER_CONFIG",
     "VALIDATION_CONFIG",
     "SWIN_CONFIG",
+    "TrainingMode",
     "get_pretrained_swin_name",
 ]
