@@ -8,4 +8,4 @@
 #SBATCH --chdir=/home/pml04/swin_transformer/Machine-Learning-Project
 
 mkdir -p logs
-apptainer run --nv --bind /home/space/datasets:/mnt/datasets pml.sif python main.py "$@"
+apptainer run --nv --bind /home/space/datasets:/mnt/datasets pml.sif ls -la /mnt/datasets/imagenet/2012
