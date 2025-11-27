@@ -145,20 +145,28 @@ def _load_cifar100_data(
 
 def _load_imagenet_data(
     transformation: Callable,
+    root: str,
 ) -> Tuple[
     torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset
 ]:
     """Load ImageNet dataset."""
-    train_dir = Path("./datasets/imagenet/train")
-    val_dir = Path("./datasets/imagenet/val")
+    train_dir = Path(root) / "train_set"
+    val_dir = Path(root) / "val_set"
 
-    if not Path(train_dir).exists() or not Path(val_dir).exists():
+    if not train_dir.exists() or not val_dir.exists():
+        logger.error(
+            f"ImageNet data not found in {root}. Expected 'train_set' and 'val_set' subfolders. "
+            "Please ensure ImageNet is manually downloaded and extracted to the correct location. "
+            "Automatic download is not supported for ImageNet."
+        )
         raise FileNotFoundError(
-            "ImageNet data not found in ./datasets. Please download and extract it."
+            f"ImageNet data not found in {root}. Expected 'train_set' and 'val_set' subfolders."
         )
 
     train_dataset = datasets.ImageFolder(train_dir, transform=transformation)
     val_dataset = datasets.ImageFolder(val_dir, transform=transformation)
+
+    logger.info(f"Loaded ImageNet data from {root}")
 
     # For ImageNet, we'll use the provided val split, but create a smaller validation set
     # and use part of training for additional validation if needed
