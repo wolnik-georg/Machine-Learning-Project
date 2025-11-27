@@ -150,8 +150,18 @@ def _load_imagenet_data(
     torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset
 ]:
     """Load ImageNet dataset."""
-    train_dir = Path(root) / "train_set"
-    val_dir = Path(root) / "val_set"
+    root_path = Path(root)
+
+    # Debug: Check if root exists and list contents
+    if not root_path.exists():
+        logger.error(f"Root path {root} does not exist.")
+        raise FileNotFoundError(f"Root path {root} does not exist.")
+
+    contents = list(root_path.iterdir()) if root_path.is_dir() else []
+    logger.info(f"Contents of {root}: {[str(p) for p in contents]}")
+
+    train_dir = root_path / "train_set"
+    val_dir = root_path / "val_set"
 
     if not train_dir.exists() or not val_dir.exists():
         logger.error(
