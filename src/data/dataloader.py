@@ -264,13 +264,25 @@ def _apply_dataset_limits(
 ]:
     """Apply size limits to datasets if specified."""
     if n_train is not None and n_train < len(train_dataset):
-        train_dataset = torch.utils.data.Subset(train_dataset, range(n_train))
+        train_dataset, _ = torch.utils.data.random_split(
+            train_dataset,
+            [n_train, len(train_dataset) - n_train],
+            generator=torch.Generator().manual_seed(42),
+        )
 
     if n_test is not None and n_test < len(val_dataset):
-        val_dataset = torch.utils.data.Subset(val_dataset, range(n_test))
+        val_dataset, _ = torch.utils.data.random_split(
+            val_dataset,
+            [n_test, len(val_dataset) - n_test],
+            generator=torch.Generator().manual_seed(42),
+        )
 
     if n_test is not None and n_test < len(test_dataset):
-        test_dataset = torch.utils.data.Subset(test_dataset, range(n_test))
+        test_dataset, _ = torch.utils.data.random_split(
+            test_dataset,
+            [n_test, len(test_dataset) - n_test],
+            generator=torch.Generator().manual_seed(42),
+        )
 
     return train_dataset, val_dataset, test_dataset
 

@@ -102,6 +102,7 @@ def setup_training_components(
     )
 
     warmup_start_factor = TRAINING_CONFIG.get("warmup_start_factor", 0.1)
+    min_lr = TRAINING_CONFIG.get("min_lr", 0.0)
 
     scheduler = SequentialLR(
         optimizer,
@@ -114,6 +115,7 @@ def setup_training_components(
             CosineAnnealingLR(
                 optimizer,
                 T_max=total_epochs - warmup_epochs,
+                eta_min=min_lr,
             ),
         ],
         milestones=[warmup_epochs],

@@ -21,8 +21,8 @@ DATA_CONFIG = {
     "root": "./datasets",
     "img_size": 224,
     # Subset configuration for faster training
-    "n_train": 5000,  # Number of training samples (None for full dataset)
-    "n_test": 500,  # Number of validation/test samples (None for full dataset)
+    "n_train": 50000,  # Number of training samples (None for full dataset) - good balance of speed vs representativeness
+    "n_test": 5000,  # Number of validation/test samples (None for full dataset)
 }
 
 # Swin Transformer configuration
@@ -48,7 +48,7 @@ apply_swin_preset(SWIN_CONFIG, SWIN_PRESETS)
 # Downstream Task Configuration
 # =============================================================================
 # Training mode: "linear_probe" or "from_scratch"
-_TRAINING_MODE = TrainingMode.LINEAR_PROBE
+_TRAINING_MODE = TrainingMode.FROM_SCRATCH
 _mode_settings = get_training_mode_settings(_TRAINING_MODE)
 
 DOWNSTREAM_CONFIG = {
@@ -63,11 +63,12 @@ DOWNSTREAM_CONFIG = {
 
 # Training configuration
 TRAINING_CONFIG = {
-    "learning_rate": 0.0001,
-    "num_epochs": 2,
-    "warmup_epochs": 1,
-    "warmup_start_factor": 0.1,  # LR multiplier at start of warmup
-    "weight_decay": 1e-4,
+    "learning_rate": 5e-4,  # Higher LR for from-scratch training
+    "num_epochs": 30,  # Sufficient epochs for subset convergence
+    "warmup_epochs": 5,  # Longer warmup for stability
+    "warmup_start_factor": 0.01,  # Start from very low LR
+    "weight_decay": 0.05,  # Higher weight decay for regularization
+    "min_lr": 1e-6,  # Minimum LR for cosine annealing
 }
 
 # Augmentation configuration
