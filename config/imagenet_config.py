@@ -64,8 +64,8 @@ DOWNSTREAM_CONFIG = {
 # Training configuration
 TRAINING_CONFIG = {
     "learning_rate": 5e-4,  # Higher LR for from-scratch training
-    "num_epochs": 30,  # Sufficient epochs for subset convergence
-    "warmup_epochs": 5,  # Longer warmup for stability
+    "num_epochs": 25,  # Sufficient epochs for subset convergence
+    "warmup_epochs": 4,  # Longer warmup for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.05,  # Higher weight decay for regularization
     "min_lr": 1e-6,  # Minimum LR for cosine annealing

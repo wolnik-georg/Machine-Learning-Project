@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-2h  # or gpu for longer
+#SBATCH --partition=gpu-teaching-5h  # 5 hour partition
 #SBATCH --gpus=1
-#SBATCH --time=08:00:00  # 8 hours for 30-epoch ablation training
+#SBATCH --time=05:00:00  # 5 hours maximum for this partition
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --job-name=ML_Train
