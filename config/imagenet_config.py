@@ -20,6 +20,9 @@ DATA_CONFIG = {
     "num_workers": 0,  # Set to 0 to avoid worker process issues
     "root": "./datasets",
     "img_size": 224,
+    # Subset configuration for faster training
+    "n_train": 5000,  # Number of training samples (None for full dataset)
+    "n_test": 500,  # Number of validation/test samples (None for full dataset)
 }
 
 # Swin Transformer configuration

@@ -152,9 +152,10 @@ def main():
 
         # Load dataset
         logger.info("Loading dataset...")
-        # For testing, use small subsets
-        n_train = 1000 if DATA_CONFIG["dataset"] == "ImageNet" else None
-        n_test = 100 if DATA_CONFIG["dataset"] == "ImageNet" else None
+        # Configure subset sizes for faster training/testing
+        # Use config values if available, otherwise None for full dataset
+        n_train = DATA_CONFIG.get("n_train")
+        n_test = DATA_CONFIG.get("n_test")
         # Set transforms
         train_transformation = get_default_transforms(
             DATA_CONFIG["dataset"], DATA_CONFIG["img_size"], is_training=True
@@ -177,8 +178,9 @@ def main():
             worker_init_fn=get_worker_init_fn(SEED_CONFIG["seed"]),
         )
         logger.info(
-            f"Dataset loaded: train={len(train_generator)}, "
-            f"val={len(val_generator)}, test={len(test_generator)} batches"
+            f"Dataset loaded: train={len(train_generator.dataset)} samples ({len(train_generator)} batches), "
+            f"val={len(val_generator.dataset)} samples ({len(val_generator)} batches), "
+            f"test={len(test_generator.dataset)} samples ({len(test_generator)} batches)"
         )
 
         # Run mode-specific training pipeline
