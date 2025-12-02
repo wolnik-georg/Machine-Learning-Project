@@ -151,8 +151,13 @@ def main():
 
         # Load dataset
         logger.info("Loading dataset...")
+        # For testing, use small subsets
+        n_train = 1000 if DATA_CONFIG["dataset"] == "ImageNet" else None
+        n_test = 100 if DATA_CONFIG["dataset"] == "ImageNet" else None
         train_generator, val_generator, test_generator = load_data(
             dataset=DATA_CONFIG["dataset"],
+            n_train=n_train,
+            n_test=n_test,
             use_batch_for_val=DATA_CONFIG.get("use_batch_for_val", True),
             val_batch=DATA_CONFIG.get("val_batch", 5),
             batch_size=DATA_CONFIG["batch_size"],

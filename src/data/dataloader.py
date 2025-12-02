@@ -153,7 +153,7 @@ def _load_imagenet_data(
 ) -> Tuple[
     torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset
 ]:
-    """Load ImageNet dataset."""
+    """Load ImageNet dataset using squashed filesystem for efficient loading."""
     logger.info(f"Starting ImageNet data loading from root: {root}")
 
     root_path = Path(root)
@@ -177,28 +177,40 @@ def _load_imagenet_data(
     contents = list(root_path.iterdir()) if root_path.is_dir() else []
     logger.info(f"Contents of {root}: {[str(p) for p in contents]}")
 
-    train_dir = root_path / "train_set"
-    val_dir = root_path / "val_set"
-    logger.info(f"Expected train_dir: {train_dir}, exists: {train_dir.exists()}")
-    logger.info(f"Expected val_dir: {val_dir}, exists: {val_dir.exists()}")
-
-    if not train_dir.exists() or not val_dir.exists():
-        logger.error(
-            f"ImageNet data not found in {root}. Expected 'train_set' and 'val_set' subfolders. "
-            "Please ensure ImageNet is manually downloaded and extracted to the correct location. "
-            "Automatic download is not supported for ImageNet."
+    # Use torchvision's ImageNet dataset with split parameter for squashed filesystem efficiency
+    logger.info("Loading ImageNet datasets using torchvision.ImageNet...")
+    try:
+        train_dataset = datasets.ImageNet(
+            root=root, split="train", transform=transformation
         )
-        raise FileNotFoundError(
-            f"ImageNet data not found in {root}. Expected 'train_set' and 'val_set' subfolders."
+        val_dataset = datasets.ImageNet(
+            root=root, split="val", transform=transformation
+        )
+        logger.info(
+            f"Loaded ImageNet data from {root}: train={len(train_dataset)}, val={len(val_dataset)}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to load ImageNet with torchvision.ImageNet: {e}")
+        # Fallback to manual folder structure if squashed loading fails
+        train_dir = root_path / "train_set"
+        val_dir = root_path / "val_set"
+        logger.info(
+            f"Fallback: Expected train_dir: {train_dir}, exists: {train_dir.exists()}"
+        )
+        logger.info(
+            f"Fallback: Expected val_dir: {val_dir}, exists: {val_dir.exists()}"
         )
 
-    logger.info("Loading datasets...")
-    train_dataset = datasets.ImageFolder(train_dir, transform=transformation)
-    val_dataset = datasets.ImageFolder(val_dir, transform=transformation)
+        if not train_dir.exists() or not val_dir.exists():
+            raise FileNotFoundError(
+                f"ImageNet data not found in {root}. Expected 'train_set' and 'val_set' subfolders or squashed filesystem."
+            )
 
-    logger.info(
-        f"Loaded ImageNet data from {root}: train={len(train_dataset)}, val={len(val_dataset)}"
-    )
+        train_dataset = datasets.ImageFolder(train_dir, transform=transformation)
+        val_dataset = datasets.ImageFolder(val_dir, transform=transformation)
+        logger.info(
+            f"Loaded ImageNet data (fallback) from {root}: train={len(train_dataset)}, val={len(val_dataset)}"
+        )
 
     # For ImageNet, we'll use the provided val split, but create a smaller validation set
     # and use part of training for additional validation if needed
