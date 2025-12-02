@@ -149,6 +149,7 @@ def _load_cifar100_data(
 
 def _load_imagenet_data(
     transformation: Callable,
+    val_transformation: Callable,
     root: str,
 ) -> Tuple[
     torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset
@@ -184,7 +185,7 @@ def _load_imagenet_data(
             root=root, split="train", transform=transformation
         )
         val_dataset = datasets.ImageNet(
-            root=root, split="val", transform=transformation
+            root=root, split="val", transform=val_transformation
         )
         logger.info(
             f"Loaded ImageNet data from {root}: train={len(train_dataset)}, val={len(val_dataset)}"
@@ -207,7 +208,7 @@ def _load_imagenet_data(
             )
 
         train_dataset = datasets.ImageFolder(train_dir, transform=transformation)
-        val_dataset = datasets.ImageFolder(val_dir, transform=transformation)
+        val_dataset = datasets.ImageFolder(val_dir, transform=val_transformation)
         logger.info(
             f"Loaded ImageNet data (fallback) from {root}: train={len(train_dataset)}, val={len(val_dataset)}"
         )
@@ -298,6 +299,7 @@ def _apply_dataset_limits(
 def load_data(
     dataset: str = "CIFAR10",
     transformation: Optional[callable] = None,
+    val_transformation: Optional[callable] = None,
     n_train: Optional[int] = None,
     n_test: Optional[int] = None,
     use_batch_for_val: bool = False,
@@ -316,7 +318,8 @@ def load_data(
 
     Args:
         dataset: Dataset name
-        transformation: Optional transform for data.
+        transformation: Optional transform for training data.
+        val_transformation: Optional transform for validation/test data.
         n_train: Number of training samples to use.
         n_test: Number of test samples to use.
         use_batch_for_val: If True, use one CIFAR-10 training batch for validation.
@@ -331,7 +334,11 @@ def load_data(
     """
     # Set default transformation if not provided
     if transformation is None:
-        transformation = get_default_transforms(dataset, img_size)
+        transformation = get_default_transforms(dataset, img_size, is_training=True)
+    if val_transformation is None:
+        val_transformation = get_default_transforms(
+            dataset, img_size, is_training=False
+        )
 
     # Load dataset-specific data
     if dataset == "CIFAR10":
@@ -342,7 +349,7 @@ def load_data(
         train_dataset, val_dataset, test_dataset = _load_cifar100_data(transformation)
     elif dataset == "ImageNet":
         train_dataset, val_dataset, test_dataset = _load_imagenet_data(
-            transformation, root
+            transformation, val_transformation, root
         )
     else:
         raise ValueError(f"Dataset {dataset} not supported.")

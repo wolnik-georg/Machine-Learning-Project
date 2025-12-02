@@ -89,7 +89,8 @@ def get_validation_transforms(img_size: int) -> Callable:
     """Get validation/test transforms (same for all datasets)."""
     return transforms.Compose(
         [
-            transforms.Resize(img_size),
+            transforms.Resize(256),  # Resize shorter side to 256
+            transforms.CenterCrop(img_size),  # Center crop to img_size x img_size
             transforms.ToTensor(),
             transforms.Normalize(
                 mean=AUGMENTATION_CONFIG["mean"], std=AUGMENTATION_CONFIG["std"]

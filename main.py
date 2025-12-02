@@ -13,6 +13,7 @@ import logging
 import torch
 
 from src.data import load_data
+from src.data.transforms import get_default_transforms
 from src.utils.seeds import set_random_seeds, get_worker_init_fn
 from src.utils.experiment import setup_run_directory, setup_logging
 
@@ -154,8 +155,17 @@ def main():
         # For testing, use small subsets
         n_train = 1000 if DATA_CONFIG["dataset"] == "ImageNet" else None
         n_test = 100 if DATA_CONFIG["dataset"] == "ImageNet" else None
+        # Set transforms
+        train_transformation = get_default_transforms(
+            DATA_CONFIG["dataset"], DATA_CONFIG["img_size"], is_training=True
+        )
+        val_transformation = get_default_transforms(
+            DATA_CONFIG["dataset"], DATA_CONFIG["img_size"], is_training=False
+        )
         train_generator, val_generator, test_generator = load_data(
             dataset=DATA_CONFIG["dataset"],
+            transformation=train_transformation,
+            val_transformation=val_transformation,
             n_train=n_train,
             n_test=n_test,
             use_batch_for_val=DATA_CONFIG.get("use_batch_for_val", True),
