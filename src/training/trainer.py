@@ -148,8 +148,8 @@ def run_training_loop(
     checkpoint_frequency=10,
 ):
     """Run the main training loop."""
-    # Early stopping setup
-    early_stopper = EarlyStopping(patience=5, min_delta=0.01, mode="min")
+    # Early stopping setup - disable for ablation studies to ensure consistent training duration
+    early_stopper = None  # EarlyStopping(patience=5, min_delta=0.01, mode="min")
 
     # Training loop
     logger.info("Starting training...")
@@ -188,7 +188,7 @@ def run_training_loop(
             lr_history.append(learning_rate)
 
         # Early stopping check
-        if early_stopper(val_loss):
+        if early_stopper and early_stopper(val_loss):
             logger.info(f"Early stopping triggered at epoch {epoch+1}.")
             break
 
