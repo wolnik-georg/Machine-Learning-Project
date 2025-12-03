@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from typing import Optional, Tuple, Union, Dict
 from .metrics import calculate_classification_metrics
-from config import AUGMENTATION_CONFIG
+from config import AUGMENTATION_CONFIG, TRAINING_CONFIG
 import numpy as np
 
 from src.training.early_stopping import EarlyStopping
@@ -148,8 +148,16 @@ def run_training_loop(
     checkpoint_frequency=10,
 ):
     """Run the main training loop."""
-    # Early stopping setup - disable for ablation studies to ensure consistent training duration
-    early_stopper = None  # EarlyStopping(patience=5, min_delta=0.01, mode="min")
+    # Early stopping setup - configurable for different experiments
+    early_stopping_config = TRAINING_CONFIG.get("early_stopping", {})
+    if early_stopping_config.get("enabled", False):
+        early_stopper = EarlyStopping(
+            patience=early_stopping_config.get("patience", 5),
+            min_delta=early_stopping_config.get("min_delta", 0.01),
+            mode=early_stopping_config.get("mode", "min"),
+        )
+    else:
+        early_stopper = None
 
     # Training loop
     logger.info("Starting training...")

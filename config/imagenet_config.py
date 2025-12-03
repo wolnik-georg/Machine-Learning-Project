@@ -69,6 +69,13 @@ TRAINING_CONFIG = {
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.05,  # Higher weight decay for regularization
     "min_lr": 1e-6,  # Minimum LR for cosine annealing
+    # Early stopping configuration
+    "early_stopping": {
+        "enabled": False,  # Disabled for ablation studies to ensure consistent training duration
+        "patience": 5,
+        "min_delta": 0.01,
+        "mode": "min",  # 'min' for loss, 'max' for accuracy
+    },
 }
 
 # Augmentation configuration
