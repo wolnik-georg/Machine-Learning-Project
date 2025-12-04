@@ -16,7 +16,7 @@ DATA_CONFIG = {
     "dataset": "ImageNet",
     "use_batch_for_val": False,
     "val_batch": 5,
-    "batch_size": 128,
+    "batch_size": 64,  # Reduced from 128 to fit in GPU memory
     "num_workers": 0,  # Set to 0 to avoid worker process issues
     "root": "./datasets",
     "img_size": 224,
@@ -65,7 +65,7 @@ DOWNSTREAM_CONFIG = {
 # Training configuration
 TRAINING_CONFIG = {
     "learning_rate": 5e-4,  # Higher LR for from-scratch training
-    "num_epochs": 20,  # Fits within 5h partition (15 epochs ≈ 4-5 hours)
+    "num_epochs": 5,  # Temporarily reduced for testing memory usage
     "warmup_epochs": 3,  # Longer warmup for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.05,  # Higher weight decay for regularization
