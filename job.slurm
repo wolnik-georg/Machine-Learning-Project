@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-5h  # 5 hour partition
+#SBATCH --partition=gpu-teaching-5h # 5 hour partition
 #SBATCH --gpus=1
 #SBATCH --time=05:00:00  # 5 hours for training
 #SBATCH --output=logs/%j.out
