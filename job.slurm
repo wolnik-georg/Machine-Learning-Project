@@ -5,7 +5,7 @@
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --job-name=ML_Train_swin_on_off_ablation
-#SBATCH --chdir=/home/pml04/swin_transformer/Machine-Learning-Project
+#SBATCH --chdir=/home/pml20/Machine-Learning-Project
 
 mkdir -p logs
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
