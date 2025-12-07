@@ -4,7 +4,7 @@
 #SBATCH --time=2-00:00:00  # 2 days for training
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
-#SBATCH --job-name=ML_Train_swin_window_size_4
+#SBATCH --job-name=ML_Train_swin_window_size_14
 #SBATCH --chdir=/home/pml20/Machine-Learning-Project
 
 mkdir -p logs
