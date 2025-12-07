@@ -33,7 +33,7 @@ SWIN_CONFIG = {
     "embed_dim": None,  # Auto-set from preset
     "depths": None,  # Auto-set from preset
     "num_heads": None,  # Auto-set from preset
-    "window_size": 14,
+    "window_size": 7,
     "mlp_ratio": 4.0,
     "dropout": 0.0,
     "attention_dropout": 0.0,
