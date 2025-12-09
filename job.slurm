@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-5h # 2 day partition
+#SBATCH --partition=gpu-teaching-5h # 5 hour partition
 #SBATCH --gpus=1
-#SBATCH --time=05:00:00  # 48 hours for training
+#SBATCH --time=05:00:00  # 5 hours for training
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
-#SBATCH --job-name=Ticket10_rel_and_abs_bias
+#SBATCH --job-name=Ticket1_shifted_window_on_off
 #SBATCH --chdir=/home/pml04/swin_transformer/Machine-Learning-Project
 
 mkdir -p logs
