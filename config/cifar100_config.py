@@ -17,7 +17,7 @@ DATA_CONFIG = {
     "use_batch_for_val": True,
     "val_batch": 5,
     "batch_size": 128,  # Reduced batch size for 224x224 images
-    "num_workers": 2,
+    "num_workers": 0,
     "root": "./datasets",
     "img_size": 224,  # Resized to 224 for ImageNet-pretrained weights compatibility
     # Subset configuration (optional, set to None to use full dataset)
