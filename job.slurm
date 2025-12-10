@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-7d  # Longer partition for 100 epochs
+#SBATCH --partition=gpu-teaching-5h  # Longer partition for 100 epochs
 #SBATCH --gpus=1
-#SBATCH --time=168:00:00  # 7 days for 100 epochs
+#SBATCH --time=05:00:00  # 5 hours for 100 epochs
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 #SBATCH --job-name=imagenet_100_epochs
