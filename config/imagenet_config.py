@@ -68,11 +68,11 @@ DOWNSTREAM_CONFIG = {
 # Training configuration
 TRAINING_CONFIG = {
     "learning_rate": 1.25e-4,  # Scaled from 5e-4 for batch_size=128 (5e-4 * 128/512 = 1.25e-4)
-    "num_epochs": 30,  # Optimized for 5-hour training window
-    "warmup_epochs": 2,  # Scaled from Swin paper: 6.7% of 30 epochs = ~2 epochs
+    "num_epochs": 100,  # Full training duration for convergence
+    "warmup_epochs": 7,  # Scaled from Swin paper: 6.7% of 100 epochs = ~7 epochs
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.05,  # Higher weight decay for regularization
-    "min_lr": 5e-5,  # Higher min LR for 30-epoch training (don't decay too low)
+    "min_lr": 1e-6,  # Lower min LR for 100-epoch training (allow full decay)
     "lr_scheduler_type": "cosine",  # Pure cosine annealing as in Swin paper (no hybrid approaches)
     # Early stopping configuration
     "early_stopping": {
