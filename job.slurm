@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-2d # 2 day partition
+#SBATCH --partition=gpu-teaching-7d # 7 day partition
 #SBATCH --gpus=1
-#SBATCH --time=48:00:00  # 2 days for training
+#SBATCH --time=168:00:00  # 7 days for training
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
-#SBATCH --job-name=baseline_with_lr_and_bigger_batch
+#SBATCH --job-name=baseline_with_proper_lr
 #SBATCH --chdir=/home/pml04/swin_transformer/Machine-Learning-Project
 
 mkdir -p logs
