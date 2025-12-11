@@ -107,6 +107,15 @@ def validate_training_parameters(
 def setup_device() -> torch.device:
     """Setup and return the appropriate device for training."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Clear GPU memory at startup to prevent fragmentation issues
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        logger.info(
+            f"GPU memory cleared at startup. Available: {torch.cuda.get_device_properties(device).total_memory / 1024**3:.1f}GB"
+        )
+
     logger.info(f"Using device: {device}")
     return device
 
