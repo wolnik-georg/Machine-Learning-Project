@@ -1,20 +1,13 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-5h      # your long partition
+#SBATCH --partition=gpu-teaching-2d     # your long partition
 #SBATCH --gpus=1
 #SBATCH --exclusive                      # ← NO sharing with other users → fixes node contention
-#SBATCH --time=05:00:00                  # 5 hours (adjust if needed)
-#SBATCH --job-name=baseline_swin         # job name
+#SBATCH --time=48:00:00                  # 48 hours (adjust if needed)
+#SBATCH --job-name=baseline_swin_50         # job name
 #SBATCH --output=logs/%j_%x.out          # includes job name → easier to find
 #SBATCH --error=logs/%j_%x.err
 #SBATCH --chdir=/home/pml04/swin_transformer/Machine-Learning-Project
 #SBATCH --array=1-5                      # Adjust as needed for multiple runs
-
-# === Exclude known bad / flaky nodes (add more if you discover them) ===
-# Example: node04 was giving you OOM with 60 MiB free
-#SBATCH --exclude=head058
-
-# === Optional: force specific good nodes (only if you know them) ===
-# #SBATCH --nodelist=node01,node02,node03
 
 mkdir -p logs
 
