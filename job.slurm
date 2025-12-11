@@ -3,10 +3,11 @@
 #SBATCH --gpus=1
 #SBATCH --exclusive                      # ← NO sharing with other users → fixes node contention
 #SBATCH --time=05:00:00                  # 5 hours (adjust if needed)
-#SBATCH --job-name=imagenet_100_epochs
+#SBATCH --job-name=baseline_swin         # job name
 #SBATCH --output=logs/%j_%x.out          # includes job name → easier to find
 #SBATCH --error=logs/%j_%x.err
 #SBATCH --chdir=/home/pml04/swin_transformer/Machine-Learning-Project
+#SBATCH --array=1-5                      # Adjust as needed for multiple runs
 
 # === Exclude known bad / flaky nodes (add more if you discover them) ===
 # Example: node04 was giving you OOM with 60 MiB free
