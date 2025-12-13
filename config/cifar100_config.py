@@ -16,7 +16,7 @@ DATA_CONFIG = {
     "dataset": "CIFAR100",
     "use_batch_for_val": True,
     "val_batch": 5,
-    "batch_size": 256,  # Increased for better gradient estimates on CIFAR-100
+    "batch_size": 64,  # Further reduced for severe memory constraints
     "num_workers": 0,
     "root": "./datasets",
     "img_size": 224,  # Resized to 224 for ImageNet-pretrained weights compatibility
@@ -42,7 +42,7 @@ SWIN_CONFIG = {
     "use_shifted_window": True,  # Ablation flag: True for SW-MSA, False for W-MSA only
     "use_relative_bias": True,  # Ablation flag: True for learned bias, False for zero bias
     "use_absolute_pos_embed": False,  # Ablation flag: True for absolute pos embed (ViT-style), False for relative bias. Can be combined with use_relative_bias=True for hybrid approach
-    "use_hierarchical_merge": False,  # Ablation flag: False for hierarchical PatchMerging (normal Swin), True for single-resolution with conv downsampling
+    "use_gradient_checkpointing": True,  # Enable gradient checkpointing to save memory
 }
 
 # Apply preset values for None fields
@@ -67,7 +67,7 @@ DOWNSTREAM_CONFIG = {
 
 # Training configuration
 TRAINING_CONFIG = {
-    "learning_rate": 6e-4,  # Scaled for 50 epochs + batch_size=256: base_LR * batch_factor * epoch_factor = 5e-4 * (256/512) * sqrt(300/50) ≈ 6.12e-4, using 6e-4
+    "learning_rate": 2e-4,  # Scaled for 50 epochs + batch_size=64: base_LR * batch_factor * epoch_factor = 5e-4 * (64/512) * sqrt(300/50) ≈ 1.53e-4, using 2e-4 as conservative estimate
     "num_epochs": 50,  # Full training duration for CIFAR-100 convergence
     "warmup_epochs": 3,  # ~6% of 50 epochs for stability (same as before)
     "warmup_start_factor": 0.01,  # Start from very low LR

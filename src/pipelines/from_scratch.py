@@ -55,7 +55,7 @@ def create_model_from_scratch(device: torch.device) -> nn.Module:
     logger.info(
         f"Model config: embed_dim={SWIN_CONFIG['embed_dim']}, "
         f"depths={SWIN_CONFIG['depths']}, num_heads={SWIN_CONFIG['num_heads']}, "
-        f"window_size={SWIN_CONFIG['window_size']}, use_shifted_window={SWIN_CONFIG['use_shifted_window']}, use_relative_bias={SWIN_CONFIG['use_relative_bias']}, use_absolute_pos_embed={SWIN_CONFIG['use_absolute_pos_embed']}, use_hierarchical_merge={SWIN_CONFIG['use_hierarchical_merge']}"
+        f"window_size={SWIN_CONFIG['window_size']}, use_shifted_window={SWIN_CONFIG['use_shifted_window']}, use_relative_bias={SWIN_CONFIG['use_relative_bias']}, use_absolute_pos_embed={SWIN_CONFIG['use_absolute_pos_embed']}, use_hierarchical_merge={SWIN_CONFIG['use_hierarchical_merge']}, use_gradient_checkpointing={SWIN_CONFIG.get('use_gradient_checkpointing', False)}"
     )
 
     encoder = SwinTransformerModel(
@@ -74,6 +74,9 @@ def create_model_from_scratch(device: torch.device) -> nn.Module:
         use_relative_bias=SWIN_CONFIG["use_relative_bias"],  # Ablation flag
         use_absolute_pos_embed=SWIN_CONFIG["use_absolute_pos_embed"],  # Ablation flag
         use_hierarchical_merge=SWIN_CONFIG["use_hierarchical_merge"],  # Ablation flag
+        use_gradient_checkpointing=SWIN_CONFIG.get(
+            "use_gradient_checkpointing", False
+        ),  # Memory optimization
     )
 
     if DOWNSTREAM_CONFIG["head_type"] == "linear_classification":
