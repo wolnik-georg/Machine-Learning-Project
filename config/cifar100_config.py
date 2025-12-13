@@ -38,7 +38,7 @@ SWIN_CONFIG = {
     "dropout": 0.0,
     "attention_dropout": 0.0,
     "projection_dropout": 0.0,
-    "drop_path_rate": 0.05,  # Increased for 50-epoch training (more regularization needed)
+    "drop_path_rate": 0.08,  # Increased for 100-epoch training (more regularization needed)
     "use_shifted_window": True,  # Ablation flag: True for SW-MSA, False for W-MSA only
     "use_relative_bias": True,  # Ablation flag: True for learned bias, False for zero bias
     "use_absolute_pos_embed": False,  # Ablation flag: True for absolute pos embed (ViT-style), False for relative bias. Can be combined with use_relative_bias=True for hybrid approach
@@ -68,12 +68,12 @@ DOWNSTREAM_CONFIG = {
 
 # Training configuration
 TRAINING_CONFIG = {
-    "learning_rate": 3e-4,  # Scaled for 50 epochs + batch_size=128: base_LR * batch_factor * epoch_factor = 5e-4 * (128/512) * sqrt(300/50) ≈ 3.06e-4
-    "num_epochs": 50,  # Full training duration for CIFAR-100 convergence
-    "warmup_epochs": 3,  # ~6% of 50 epochs for stability (same as before)
+    "learning_rate": 2e-4,  # Scaled for 100 epochs + batch_size=128: base_LR * batch_factor * epoch_factor = 5e-4 * (128/512) * sqrt(300/100) ≈ 2.17e-4
+    "num_epochs": 100,  # Extended training for CIFAR-100 convergence to ~80% accuracy
+    "warmup_epochs": 6,  # ~6% of 100 epochs for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
-    "weight_decay": 0.03,  # Slightly increased for longer training schedule
-    "min_lr": 5e-5,  # Higher min LR to maintain learning capacity in later epochs
+    "weight_decay": 0.04,  # Increased for longer training to prevent overfitting
+    "min_lr": 1e-5,  # Lower min LR for extended training (allow full decay)
     "lr_scheduler_type": "cosine",  # Pure cosine annealing
     # Early stopping configuration
     "early_stopping": {
