@@ -16,7 +16,7 @@ DATA_CONFIG = {
     "dataset": "CIFAR100",
     "use_batch_for_val": True,
     "val_batch": 5,
-    "batch_size": 128,  # Increased from 64 - should work with gradient checkpointing
+    "batch_size": 196,  # Increased from 64 - should work with gradient checkpointing
     "num_workers": 0,
     "root": "./datasets",
     "img_size": 224,  # Resized to 224 for ImageNet-pretrained weights compatibility
@@ -68,6 +68,8 @@ DOWNSTREAM_CONFIG = {
 
 # Training configuration
 TRAINING_CONFIG = {
+    "seed": 42,  # Random seed for reproducibility
+    "deterministic": False,  # Set to True for fully reproducible (but slower) training
     "learning_rate": 2e-4,  # Scaled for 100 epochs + batch_size=128: base_LR * batch_factor * epoch_factor = 5e-4 * (128/512) * sqrt(300/100) ≈ 2.17e-4
     "num_epochs": 100,  # Extended training for CIFAR-100 convergence to ~80% accuracy
     "warmup_epochs": 6,  # ~6% of 100 epochs for stability

@@ -14,7 +14,7 @@ import torch
 
 from src.data import load_data
 from src.data.transforms import get_default_transforms
-from src.utils.seeds import set_random_seeds, get_worker_init_fn
+from src.utils.seeds import set_all_seeds, get_worker_init_fn
 from src.utils.experiment import setup_run_directory, setup_logging
 
 from config import (
@@ -143,7 +143,7 @@ def main():
         logger.info(
             f"Setting random seeds for reproducibility (seed: {SEED_CONFIG['seed']})..."
         )
-        set_random_seeds(
+        set_all_seeds(
             seed=SEED_CONFIG["seed"], deterministic=SEED_CONFIG["deterministic"]
         )
 

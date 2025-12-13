@@ -67,6 +67,8 @@ DOWNSTREAM_CONFIG = {
 
 # Training configuration
 TRAINING_CONFIG = {
+    "seed": 42,  # Random seed for reproducibility
+    "deterministic": False,  # Set to True for fully reproducible (but slower) training
     "learning_rate": 4e-4,  # Scaled for 40 epochs + batch_size=192: base_LR * batch_factor * epoch_factor = 5e-4 * (192/512) * sqrt(300/40) ≈ 5.14e-4, using 4e-4 as conservative estimate
     "num_epochs": 40,  # Reduced for faster training while maintaining convergence
     "warmup_epochs": 3,  # ~7.5% of 40 epochs (slightly more warmup for stability)
