@@ -2,6 +2,8 @@
 Model factory for creating different architectures for comparison experiments.
 """
 
+import torch
+from torch.utils.checkpoint import checkpoint
 import timm
 import torchvision.models as models
 from .swin.swin_transformer_model import SwinTransformerModel
@@ -65,7 +67,7 @@ def create_swin_model(config):
 
 
 def create_vit_model(config):
-    """Create ViT model using timm library."""
+    """Create ViT model using timm library with gradient checkpointing."""
     model = timm.create_model(
         "vit_tiny_patch16_224",
         pretrained=False,
@@ -76,14 +78,32 @@ def create_vit_model(config):
         depth=config["depth"],
         num_heads=config["num_heads"],
         mlp_ratio=config["mlp_ratio"],
+        drop_path_rate=0.1,  # Add some dropout for regularization
     )
 
-    # Return model directly (has built-in classification head)
+    # Enable gradient checkpointing for memory efficiency if requested
+    if config.get("use_gradient_checkpointing", False):
+        if hasattr(model, "grad_checkpointing"):
+            model.grad_checkpointing = True
+        elif hasattr(model, "blocks"):
+            # Manually enable gradient checkpointing for blocks
+            original_forward = model.blocks.forward
+
+            def checkpointed_forward(x):
+                if model.training:
+                    for block in model.blocks:
+                        x = checkpoint(block, x, use_reentrant=False)
+                    return x
+                else:
+                    return original_forward(x)
+
+            model.blocks.forward = checkpointed_forward
+
     return model
 
 
 def create_resnet_model(config):
-    """Create ResNet model using torchvision."""
+    """Create ResNet model using torchvision with gradient checkpointing."""
     # Use layers config to choose ResNet variant
     layers = config.get("layers", [3, 4, 6, 3])
 
@@ -95,5 +115,51 @@ def create_resnet_model(config):
         # Default to ResNet-50
         model = models.resnet50(pretrained=False, num_classes=config["num_classes"])
 
-    # Return model directly (has built-in classification head)
+    # Enable gradient checkpointing for memory efficiency if requested
+    if config.get("use_gradient_checkpointing", False):
+        if (
+            hasattr(model, "layer1")
+            and hasattr(model, "layer2")
+            and hasattr(model, "layer3")
+            and hasattr(model, "layer4")
+        ):
+            # Wrap each ResNet layer with gradient checkpointing
+            original_layer1_forward = model.layer1.forward
+            original_layer2_forward = model.layer2.forward
+            original_layer3_forward = model.layer3.forward
+            original_layer4_forward = model.layer4.forward
+
+            def checkpointed_layer1(x):
+                return (
+                    checkpoint(original_layer1_forward, x, use_reentrant=False)
+                    if model.training
+                    else original_layer1_forward(x)
+                )
+
+            def checkpointed_layer2(x):
+                return (
+                    checkpoint(original_layer2_forward, x, use_reentrant=False)
+                    if model.training
+                    else original_layer2_forward(x)
+                )
+
+            def checkpointed_layer3(x):
+                return (
+                    checkpoint(original_layer3_forward, x, use_reentrant=False)
+                    if model.training
+                    else original_layer3_forward(x)
+                )
+
+            def checkpointed_layer4(x):
+                return (
+                    checkpoint(original_layer4_forward, x, use_reentrant=False)
+                    if model.training
+                    else original_layer4_forward(x)
+                )
+
+            model.layer1.forward = checkpointed_layer1
+            model.layer2.forward = checkpointed_layer2
+            model.layer3.forward = checkpointed_layer3
+            model.layer4.forward = checkpointed_layer4
+
     return model

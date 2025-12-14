@@ -44,11 +44,13 @@ MODEL_CONFIGS = {
         "num_heads": 7,  # Increased for better capacity
         "mlp_ratio": 4.0,
         "num_classes": 1000,
+        "use_gradient_checkpointing": True,  # Enable for memory efficiency
     },
     "resnet": {
         "type": "resnet",
         "layers": [3, 4, 6, 3],  # ResNet-50
         "num_classes": 1000,
+        "use_gradient_checkpointing": True,  # Enable for memory efficiency
     },
 }
 

@@ -36,6 +36,16 @@ TRAINING_CONFIG = {
     "num_epochs": 15,         # Testing configuration
     "warmup_epochs": 1,
 }
+
+DATA_CONFIG = {
+    "batch_size": 224,        # Full batch size with gradient checkpointing
+}
+
+MODEL_CONFIGS = {
+    "swin": { "use_gradient_checkpointing": True },
+    "vit": { "use_gradient_checkpointing": True },
+    "resnet": { "use_gradient_checkpointing": True }
+}
 ```
 
 #### Model Comparison on ImageNet
