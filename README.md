@@ -29,7 +29,21 @@ TRAINING_CONFIG = {
 ```
 
 **For CIFAR-10** → Edit `config/cifar10_config.py`  
-**For ImageNet** → Edit `config/imagenet_config.py`
+**For ImageNet** → Edit `config/imagenet_config.py` (currently set to 15 epochs for testing):
+```python
+TRAINING_CONFIG = {
+    "learning_rate": 1.5e-3,  # Adjusted for 15 epochs
+    "num_epochs": 15,         # Testing configuration
+    "warmup_epochs": 1,
+}
+```
+
+#### Model Comparison on ImageNet
+For comparing Swin Transformer vs ViT vs ResNet, edit `config/imagenet_config.py`:
+```python
+MODEL_TYPE = "swin"  # Options: "swin", "vit", "resnet"
+```
+All models are configured with ~25-30M parameters and identical training settings for fair comparison (currently 15 epochs for testing).
 
 ### 3. Set Data Path
 In `config/__init__.py`:
