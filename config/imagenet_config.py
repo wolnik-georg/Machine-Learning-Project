@@ -62,7 +62,7 @@ DATA_CONFIG = {
     "dataset": "ImageNet",
     "use_batch_for_val": False,
     "val_batch": 5,
-    "batch_size": 224,  # Increased for better gradient estimates on ImageNet
+    "batch_size": 128,  # Increased for better gradient estimates on ImageNet
     "num_workers": 0,  # Set to 0 to avoid worker process issues
     "root": "./datasets",
     "img_size": 224,
