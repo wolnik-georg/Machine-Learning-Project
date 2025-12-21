@@ -3,6 +3,7 @@ Enhanced Metrics Module for
 """
 
 import torch
+from typing import Optional
 import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 from typing import Dict, Tuple, List
@@ -18,6 +19,7 @@ def calculate_classification_metrics(
     data_loader: torch.utils.data.DataLoader,
     device: torch.device,
     num_classes: int = 10,
+    amp_dtype: Optional[torch.dtype] = None
 ) -> Dict[str, float]:
     """
     Calculate comprehensive classification metrics.
@@ -28,8 +30,14 @@ def calculate_classification_metrics(
 
     with torch.no_grad():
         for inputs, labels in data_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
-            outputs = model(inputs)
+            inputs = inputs.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+            with torch.autocast(
+                device_type=device.type,
+                dtype=amp_dtype,
+                enabled=bool(amp_dtype),
+            ):
+                outputs = model(inputs)
             _, preds = torch.max(outputs, 1)
 
             all_preds.extend(preds.cpu().numpy())

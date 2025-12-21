@@ -175,6 +175,7 @@ def generate_reports(
     lr_history,
     metrics_history,
     device,
+    amp_dtype,
     run_dir,
     validation_results=None,
 ):
@@ -192,6 +193,7 @@ def generate_reports(
         device,
         num_classes=DOWNSTREAM_CONFIG["num_classes"],
         detailed_metrics=True,
+        amp_dtype=amp_dtype
     )
     plot_confusion_matrix(
         final_test_metrics["confusion_matrix"],
@@ -206,7 +208,7 @@ def generate_reports(
     # Final evaluation on test set
     logger.info(f"Performing final evaluation of {variant} model on test set...")
     final_test_loss, final_test_accuracy, final_test_metrics = evaluate_model(
-        model, test_generator, criterion, device, detailed_metrics=True
+        model, test_generator, criterion, device, detailed_metrics=True, amp_dtype=amp_dtype
     )
     logger.info(
         f"Final Test Results of {variant} model: Loss: {final_test_loss:.4f}, Accuracy: {final_test_accuracy:.2f}%"
