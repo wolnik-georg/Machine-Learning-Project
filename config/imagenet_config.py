@@ -23,6 +23,7 @@ DATA_CONFIG = {
     # Subset configuration for faster training
     "n_train": 100000,  # Increased training samples for better generalization
     "n_test": 50000,  # Number of validation/test samples (None for full dataset) - using full validation set
+    "stratified": True  # Maintain class distribution in train/test split for balanced sampling
 }
 
 # Swin Transformer configuration

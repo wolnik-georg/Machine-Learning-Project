@@ -10,6 +10,10 @@ import os
 from typing import Optional, Tuple, Callable
 from pathlib import Path
 from torchvision import datasets
+from torch.utils.data import Subset
+from sklearn.model_selection import train_test_split
+
+from config import DATA_CONFIG
 
 from .datasets import CIFAR10Dataset
 from .transforms import get_default_transforms
@@ -253,36 +257,57 @@ def _create_dataloaders(
     return train_loader, val_loader, test_loader
 
 
+def _subset(dataset, n, stratified, seed=42):
+    """
+    Return a subset of size n from a dataset,
+    optionally preserving class distribution when stratified.
+    """
+    if not stratified:
+        subset, _ = torch.utils.data.random_split(
+            dataset,
+            [n, len(dataset) - n],
+            generator=torch.Generator().manual_seed(seed),
+        )
+        return subset
+
+    targets = getattr(dataset, "targets", None)
+    if targets is None:
+        raise ValueError("Stratified split requires dataset.targets")
+
+    idx = list(range(len(dataset)))
+    idx_sub, _ = train_test_split(
+        idx,
+        train_size=n,
+        stratify=targets,
+        random_state=seed,
+    )
+    return Subset(dataset, idx_sub)
+
+
 def _apply_dataset_limits(
     train_dataset: torch.utils.data.Dataset,
     val_dataset: torch.utils.data.Dataset,
     test_dataset: torch.utils.data.Dataset,
     n_train: Optional[int],
     n_test: Optional[int],
+    stratified: bool
 ) -> Tuple[
     torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset
 ]:
     """Apply size limits to datasets if specified."""
     if n_train is not None and n_train < len(train_dataset):
-        train_dataset, _ = torch.utils.data.random_split(
-            train_dataset,
-            [n_train, len(train_dataset) - n_train],
-            generator=torch.Generator().manual_seed(42),
-        )
+        train_dataset = _subset(train_dataset, n_train, stratified)
 
     if n_test is not None and n_test < len(val_dataset):
-        val_dataset, _ = torch.utils.data.random_split(
-            val_dataset,
-            [n_test, len(val_dataset) - n_test],
-            generator=torch.Generator().manual_seed(42),
-        )
+        val_dataset = _subset(val_dataset, n_test, stratified)
 
     if n_test is not None and n_test < len(test_dataset):
-        test_dataset, _ = torch.utils.data.random_split(
-            test_dataset,
-            [n_test, len(test_dataset) - n_test],
-            generator=torch.Generator().manual_seed(42),
-        )
+        test_dataset = _subset(test_dataset, n_test, stratified)
+
+    if stratified:
+        logger.info("Dataset limits applied (stratified sampling enabled)")
+    else:
+        logger.info("Dataset limits applied")
 
     return train_dataset, val_dataset, test_dataset
 
@@ -293,6 +318,7 @@ def load_data(
     val_transformation: Optional[callable] = None,
     n_train: Optional[int] = None,
     n_test: Optional[int] = None,
+    stratified: bool = False,
     use_batch_for_val: bool = False,
     val_batch: int = 5,
     batch_size: int = 32,
@@ -349,7 +375,7 @@ def load_data(
 
     # Apply dataset size limits if specified
     train_dataset, val_dataset, test_dataset = _apply_dataset_limits(
-        train_dataset, val_dataset, test_dataset, n_train, n_test
+        train_dataset, val_dataset, test_dataset, n_train, n_test, stratified
     )
 
     # Create DataLoaders

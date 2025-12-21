@@ -174,6 +174,8 @@ def main():
         # Use config values if available, otherwise None for full dataset
         n_train = DATA_CONFIG.get("n_train")
         n_test = DATA_CONFIG.get("n_test")
+        # Preserves class distribution when limiting datasets
+        stratified = DATA_CONFIG.get("stratified", False)
         # Set transforms
         train_transformation = get_default_transforms(
             DATA_CONFIG["dataset"], DATA_CONFIG["img_size"], is_training=True
@@ -187,6 +189,7 @@ def main():
             val_transformation=val_transformation,
             n_train=n_train,
             n_test=n_test,
+            stratified=stratified,
             use_batch_for_val=DATA_CONFIG.get("use_batch_for_val", True),
             val_batch=DATA_CONFIG.get("val_batch", 5),
             batch_size=DATA_CONFIG["batch_size"],
