@@ -19,7 +19,7 @@ class SwinTransformerBlock(nn.Module):
     - Standard Window Multi-head Self Attention (W-MSA) mode
     - Shifted Window Multi-head Self Attention (SW-MSA) mode
 
-    ┌────────────────────── SWIN BLOCK ARCHITECTURE ──────────────────────┐
+    ┌────────────────────── SWIN BLOCK ARCHITECTURE ───────────────────────┐
     │                                                                      │
     │  Input: [B, H×W, C]                                                  │
     │      │                                                               │
@@ -37,7 +37,7 @@ class SwinTransformerBlock(nn.Module):
     │  DropPath (Stochastic Depth)   │                                     │
     │      │                         │                                     │
     │      ▼                         │                                     │
-    │  ◄──(+)◄────────────────────────┘                                     │
+    │  ◄──(+)◄────────────────────────┘                                    │
     │      │                                                               │
     │      ├─────────────────────────┐                                     │
     │      │                         │  (Residual Connection 2)            │
@@ -51,7 +51,7 @@ class SwinTransformerBlock(nn.Module):
     │  DropPath (Stochastic Depth)   │                                     │
     │      │                         │                                     │
     │      ▼                         │                                     │
-    │  ◄──(+)◄────────────────────────┘                                     │
+    │  ◄──(+)◄────────────────────────┘                                    │
     │      │                                                               │
     │      ▼                                                               │
     │  Output: [B, H×W, C]                                                 │

@@ -15,30 +15,30 @@ class ConvDownsample(nn.Module):
     Operation: Reshape → 3×3 Conv (stride 1) → Reshape
     Result: Same spatial resolution, different feature transformation
 
-    ┌────────────────────── SINGLE-RESOLUTION ABLATION ──────────────────────┐
-    │                                                                       │
+    ┌────────────────────── SINGLE-RESOLUTION ABLATION ────────────────────┐
+    │                                                                      │
     │  Input: [B, H×W, C]  (e.g., [B, 3136, 96] for 56×56)                 │
-    │      │                                                                │
-    │      ▼ Reshape to spatial                                             │
+    │      │                                                               │
+    │      ▼ Reshape to spatial                                            │
     │  [B, H, W, C]  (e.g., [B, 56, 56, 96])                               │
-    │      │                                                                │
-    │      ▼ Transpose for conv                                             │
+    │      │                                                               │
+    │      ▼ Transpose for conv                                            │
     │  [B, C, H, W]  (e.g., [B, 96, 56, 56])                               │
-    │      │                                                                │
-    │      ▼                                                                │
-    │  ┌─────────────────────────────────────────┐                          │
-    │  │  3×3 Conv, stride 1, padding 1         │                          │
-    │  │  Maintains spatial resolution           │                          │
-    │  │  Changes feature processing             │                          │
-    │  └─────────────────────────────────────────┘                          │
-    │      │                                                                │
-    │      ▼ Transpose back                                                 │
-    │  [B, H, W, C]  (same spatial dims)                                    │
-    │      │                                                                │
-    │      ▼ Flatten                                                        │
-    │  [B, H×W, C]  (same output shape as input)                            │
-    │                                                                       │
-    └───────────────────────────────────────────────────────────────────────┘
+    │      │                                                               │
+    │      ▼                                                               │
+    │  ┌─────────────────────────────────────────┐                         │
+    │  │  3×3 Conv, stride 1, padding 1          │                         │
+    │  │  Maintains spatial resolution           │                         │
+    │  │  Changes feature processing             │                         │
+    │  └─────────────────────────────────────────┘                         │
+    │      │                                                               │
+    │      ▼ Transpose back                                                │
+    │  [B, H, W, C]  (same spatial dims)                                   │
+    │      │                                                               │
+    │      ▼ Flatten                                                       │
+    │  [B, H×W, C]  (same output shape as input)                           │
+    │                                                                      │
+    └──────────────────────────────────────────────────────────────────────┘
 
     Why This Ablation Matters:
     1. **No Hierarchical Downsampling**: All stages work at 56×56 resolution

@@ -26,7 +26,7 @@ class SwinTransformerModel(nn.Module):
         attention_dropout_rate: float = 0.0,
         projection_dropout_rate: float = 0.0,
         drop_path_rate: float = 0.1,
-        pretrain_img_size: int = 224, # image size the model was pretrained on
+        pretrain_img_size: int | None = None, # image size the model was pretrained on
         out_indices: tuple | None = None, # which Swin stages should output features (0, 1, 2, 3)
         use_shifted_window: bool = True,  # Ablation flag: True for SW-MSA, False for W-MSA only
         use_relative_bias: bool = True,  # Ablation flag: True for learned bias, False for zero bias
@@ -51,6 +51,8 @@ class SwinTransformerModel(nn.Module):
             "attention_dropout_rate": attention_dropout_rate,
             "projection_dropout_rate": projection_dropout_rate,
             "drop_path_rate": drop_path_rate,
+            "pretrain_img_size": pretrain_img_size,
+            "out_indices": out_indices,
             "use_shifted_window": use_shifted_window,
             "use_relative_bias": use_relative_bias,
             "use_absolute_pos_embed": use_absolute_pos_embed,
@@ -87,9 +89,6 @@ class SwinTransformerModel(nn.Module):
             pretrain_img_size=pretrain_img_size,
             use_absolute_pos_embed=use_absolute_pos_embed,
         )
-
-        patches_resolution = self.patch_embed.patches_resolution
-        self.patches_resolution = patches_resolution
 
         # Generate drop path rates for each layer
         drop_path_rates = generate_drop_path_rates(drop_path_rate, sum(depths))
@@ -199,7 +198,7 @@ class SwinTransformerModel(nn.Module):
             "model_type": "SwinTransformer",
             "config": self.config,
             "num_layers": self.num_layers,
+            "num_features_list": self.num_features_list,
             "num_features": self.num_features,
-            "patches_resolution": self.patches_resolution,
             "parameter_count": sum(p.numel() for p in self.parameters()),
         }

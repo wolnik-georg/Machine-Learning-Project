@@ -65,7 +65,7 @@ class PatchEmbed(nn.Module):
         patch_size: int = 4,
         in_channels: int = 3,
         embedding_dim: int = 96,
-        pretrain_img_size: int = 224,
+        pretrain_img_size: int | None = None,
         use_absolute_pos_embed: bool = False,  # Ablation flag: True for absolute pos embed (ViT-style)
     ):
         """
@@ -73,13 +73,8 @@ class PatchEmbed(nn.Module):
         """
         super().__init__()
 
-        if img_size is None:
-            self.img_size = pretrain_img_size
-        else:
-            self.img_size = img_size
+        self.img_size = img_size
         self.patch_size = patch_size
-        self.patches_resolution = [img_size // patch_size, img_size // patch_size]
-        self.num_patches = self.patches_resolution[0] * self.patches_resolution[1]
 
         self.in_channels = in_channels
         self.embedding_dim = embedding_dim
@@ -98,6 +93,12 @@ class PatchEmbed(nn.Module):
 
         # Absolute position embedding (ViT-style) - ablation flag
         if self.use_absolute_pos_embed:
+            if img_size is None:
+                assert pretrain_img_size is not None, (
+                    "Either image size or pretrain image size must be provided when using absolute position embedding."
+                )
+                img_size = pretrain_img_size
+            num_patches = (img_size // patch_size) * (img_size // patch_size)
             self.absolute_pos_embed = nn.Parameter(
                 torch.zeros(1, self.num_patches, embedding_dim)
             )
