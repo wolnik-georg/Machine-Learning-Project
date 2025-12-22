@@ -112,20 +112,27 @@ def get_default_transforms(
 
     Returns:
         A torchvision.transforms.Compose object with the appropriate transformations.
+        For segmentation datasets (ADE20K), returns a synchronized transform that
+        handles both image and mask.
     """
+    
+    # Special handling for segmentation datasets
+    if dataset == "ADE20K":
+        from .segmentation_transforms import ADE20KTransform
+        return ADE20KTransform(
+            img_size=img_size,
+            is_training=is_training,
+            mean=AUGMENTATION_CONFIG["mean"],
+            std=AUGMENTATION_CONFIG["std"],
+        )
 
-    # Use standard transforms for all datasets - patch embedding happens in the model
+    # Use standard transforms for classification datasets
     if not AUGMENTATION_CONFIG["use_augmentation"]:
         return get_basic_transforms(img_size)
 
     if is_training:
         if dataset in ["CIFAR10", "CIFAR100"]:
             return get_cifar_training_transforms(img_size)
-        elif dataset == "ADE20K":
-            # For segmentation, use ImageNet-style transforms
-            # Note: Segmentation-specific augmentations (random scale, etc.) 
-            # should be handled in the dataset class or training pipeline
-            return get_imagenet_training_transforms(img_size)
         else:
             return get_imagenet_training_transforms(img_size)
     else:

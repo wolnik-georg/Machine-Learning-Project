@@ -223,12 +223,16 @@ def _load_ade20k_data(
     3. Auto-download to user directory if not found
     
     Args:
-        train_transformation: Transform for training data
-        val_transformation: Transform for validation data
+        train_transformation: Transform for training data (should handle image+mask)
+        val_transformation: Transform for validation data (should handle image+mask)
         root: Root directory hint (not strictly used, we check multiple locations)
     
     Returns:
         Tuple of (train_dataset, val_dataset, test_dataset)
+    
+    Note:
+        For ADE20K segmentation, transformations must be synchronized transforms
+        that process both image and mask together to maintain spatial correspondence.
     """
     # Check multiple possible locations
     shared_path = Path("/home/space/datasets/ade20k")
@@ -258,7 +262,7 @@ def _load_ade20k_data(
         logger.info(f"ADE20K dataset not found. Downloading to {data_root}...")
         _download_ade20k(data_root)
     
-    # Create datasets
+    # Create datasets with synchronized transforms
     train_dataset = ADE20KDataset(
         root=data_root,
         split='training',

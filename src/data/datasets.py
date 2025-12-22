@@ -51,8 +51,8 @@ class ADE20KDataset(Dataset):
     Args:
         root: Root directory of ADE20K dataset
         split: 'training' or 'validation'
-        transform: Optional transform to apply to images
-        target_transform: Optional transform to apply to segmentation masks
+        transform: Optional synchronized transform to apply to both image and mask
+                   Should be a callable that takes (image, mask) and returns (image_tensor, mask_tensor)
     """
     
     def __init__(
@@ -60,12 +60,10 @@ class ADE20KDataset(Dataset):
         root: str,
         split: str = 'training',
         transform: Optional[callable] = None,
-        target_transform: Optional[callable] = None,
     ):
         self.root = Path(root)
         self.split = split
         self.transform = transform
-        self.target_transform = target_transform
         
         # ADE20K structure: images/training/, annotations/training/
         self.images_dir = self.root / 'images' / split
@@ -93,14 +91,14 @@ class ADE20KDataset(Dataset):
         ann_path = self.annotations_dir / (img_path.stem + '.png')
         mask = Image.open(ann_path)
         
-        # Apply transforms
+        # Apply synchronized transform (transforms both image and mask)
         if self.transform:
-            image = self.transform(image)
-        
-        if self.target_transform:
-            mask = self.target_transform(mask)
+            image, mask = self.transform(image, mask)
         else:
-            # Convert mask to tensor if no transform provided
+            # Default: just convert to tensors without resizing
+            # This will cause batching errors - transform should always be provided
+            from torchvision.transforms import functional as TF
+            image = TF.to_tensor(image)
             mask = torch.from_numpy(np.array(mask, dtype=np.int64))
         
         return image, mask

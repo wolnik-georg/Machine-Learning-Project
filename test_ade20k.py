@@ -80,7 +80,22 @@ def test_ade20k_loading():
         logger.info(f"Masks shape: {masks.shape}")
         logger.info(f"Masks dtype: {masks.dtype}")
         logger.info(f"Unique classes in batch: {len(masks.unique())} classes")
+        logger.info(f"Class IDs in batch: {sorted(masks.unique().tolist()[:20])}...")  # Show first 20
         logger.info(f"Class range: {masks.min()} to {masks.max()}")
+        
+        # Verify shapes are correct for batching
+        expected_img_shape = (test_config["batch_size"], 3, test_config["img_size"], test_config["img_size"])
+        expected_mask_shape = (test_config["batch_size"], test_config["img_size"], test_config["img_size"])
+        
+        if images.shape == expected_img_shape:
+            logger.info(f"✓ Image shape correct: {images.shape}")
+        else:
+            logger.warning(f"⚠ Image shape mismatch: got {images.shape}, expected {expected_img_shape}")
+        
+        if masks.shape == expected_mask_shape:
+            logger.info(f"✓ Mask shape correct: {masks.shape}")
+        else:
+            logger.warning(f"⚠ Mask shape mismatch: got {masks.shape}, expected {expected_mask_shape}")
         
         logger.info("\n" + "=" * 80)
         logger.info("✅ ADE20K Dataset Loading Test PASSED!")
