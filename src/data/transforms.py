@@ -104,10 +104,10 @@ def get_default_transforms(
 ) -> Callable:
     """
     Get default transformations for different datasets.
-    CIFAR: 32x32, ImageNet: 224x224
+    CIFAR: 32x32, ImageNet: 224x224, ADE20K: 512x512
 
     Args:
-        dataset: Dataset name like 'CIFAR10' or 'ImageNet'
+        dataset: Dataset name like 'CIFAR10', 'ImageNet', or 'ADE20K'
         img_size: Target image size for resizing
 
     Returns:
@@ -121,6 +121,11 @@ def get_default_transforms(
     if is_training:
         if dataset in ["CIFAR10", "CIFAR100"]:
             return get_cifar_training_transforms(img_size)
+        elif dataset == "ADE20K":
+            # For segmentation, use ImageNet-style transforms
+            # Note: Segmentation-specific augmentations (random scale, etc.) 
+            # should be handled in the dataset class or training pipeline
+            return get_imagenet_training_transforms(img_size)
         else:
             return get_imagenet_training_transforms(img_size)
     else:

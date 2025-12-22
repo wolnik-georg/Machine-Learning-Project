@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 
 from config import DATA_CONFIG
 
-from .datasets import CIFAR10Dataset
+from .datasets import CIFAR10Dataset, ADE20KDataset
 from .transforms import get_default_transforms
 from ..utils.seeds import set_worker_seeds
 
@@ -152,6 +152,137 @@ def _load_cifar100_data(
         generator=torch.Generator().manual_seed(42),
     )
 
+    return train_dataset, val_dataset, test_dataset
+
+
+def _download_ade20k(data_dir: Path) -> None:
+    """
+    Download and extract ADE20K dataset.
+    
+    Args:
+        data_dir: Directory to download and extract dataset to
+    """
+    import urllib.request
+    import zipfile
+    import shutil
+    
+    logger.info(f"Downloading ADE20K dataset to {data_dir}...")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Official ADE20K download URL
+    url = "http://data.csail.mit.edu/places/ADEchallenge/ADEChallengeData2016.zip"
+    zip_path = data_dir / "ADEChallengeData2016.zip"
+    
+    try:
+        # Download with progress
+        def _progress_hook(count, block_size, total_size):
+            percent = int(count * block_size * 100 / total_size)
+            if count % 50 == 0:  # Print every 50 blocks
+                logger.info(f"Download progress: {percent}%")
+        
+        urllib.request.urlretrieve(url, zip_path, _progress_hook)
+        logger.info("Download completed. Extracting...")
+        
+        # Extract zip file
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(data_dir)
+        
+        # ADE20K extracts to ADEChallengeData2016/
+        extracted_dir = data_dir / "ADEChallengeData2016"
+        if extracted_dir.exists():
+            # Move contents to data_dir
+            for item in extracted_dir.iterdir():
+                shutil.move(str(item), str(data_dir / item.name))
+            extracted_dir.rmdir()
+        
+        # Clean up zip file
+        zip_path.unlink()
+        logger.info(f"ADE20K dataset successfully downloaded and extracted to {data_dir}")
+        
+    except Exception as e:
+        logger.error(f"Failed to download ADE20K: {e}")
+        # Clean up partial downloads
+        if zip_path.exists():
+            zip_path.unlink()
+        raise
+
+
+def _load_ade20k_data(
+    train_transformation: Callable,
+    val_transformation: Callable,
+    root: str,
+) -> Tuple[
+    torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset
+]:
+    """
+    Load ADE20K dataset with automatic download fallback.
+    
+    Checks in order:
+    1. Shared storage: /home/space/datasets/ade20k
+    2. User directory: ~/datasets/ade20k
+    3. Auto-download to user directory if not found
+    
+    Args:
+        train_transformation: Transform for training data
+        val_transformation: Transform for validation data
+        root: Root directory hint (not strictly used, we check multiple locations)
+    
+    Returns:
+        Tuple of (train_dataset, val_dataset, test_dataset)
+    """
+    # Check multiple possible locations
+    shared_path = Path("/home/space/datasets/ade20k")
+    user_path = Path.home() / "datasets" / "ade20k"
+    local_path = Path(root) / "ade20k"
+    
+    data_root = None
+    
+    # Check shared storage first (no download needed)
+    if shared_path.exists() and (shared_path / "images").exists():
+        data_root = shared_path
+        logger.info(f"Using shared ADE20K dataset from {data_root}")
+    
+    # Check user directory
+    elif user_path.exists() and (user_path / "images").exists():
+        data_root = user_path
+        logger.info(f"Using user ADE20K dataset from {data_root}")
+    
+    # Check local path (for local development)
+    elif local_path.exists() and (local_path / "images").exists():
+        data_root = local_path
+        logger.info(f"Using local ADE20K dataset from {data_root}")
+    
+    # Download to user directory if not found anywhere
+    else:
+        data_root = user_path
+        logger.info(f"ADE20K dataset not found. Downloading to {data_root}...")
+        _download_ade20k(data_root)
+    
+    # Create datasets
+    train_dataset = ADE20KDataset(
+        root=data_root,
+        split='training',
+        transform=train_transformation,
+    )
+    
+    val_dataset = ADE20KDataset(
+        root=data_root,
+        split='validation',
+        transform=val_transformation,
+    )
+    
+    # For ADE20K, use validation set as test set (standard practice)
+    test_dataset = ADE20KDataset(
+        root=data_root,
+        split='validation',
+        transform=val_transformation,
+    )
+    
+    logger.info(
+        f"Loaded ADE20K data from {data_root}: "
+        f"train={len(train_dataset)}, val={len(val_dataset)}, test={len(test_dataset)}"
+    )
+    
     return train_dataset, val_dataset, test_dataset
 
 
@@ -369,6 +500,10 @@ def load_data(
         )
     elif dataset == "ImageNet":
         train_dataset, val_dataset, test_dataset = _load_imagenet_data(
+            transformation, val_transformation, root
+        )
+    elif dataset == "ADE20K":
+        train_dataset, val_dataset, test_dataset = _load_ade20k_data(
             transformation, val_transformation, root
         )
     else:
