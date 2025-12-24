@@ -57,9 +57,9 @@ DOWNSTREAM_CONFIG = {
     "head_type": "upernet",  # Segmentation head (UperNet)
     "num_classes": 150,  # ADE20K has 150 semantic categories
     "hidden_dim": None,
-    # Auto-set based on mode
-    "freeze_encoder": _mode_settings["freeze_encoder"],
-    "use_pretrained": _mode_settings["use_pretrained"],
+    # Fine-tuning setup: Load ImageNet pretrained weights, train both encoder + head
+    "freeze_encoder": False,  # Fine-tune encoder (not frozen)
+    "use_pretrained": True,   # Load ImageNet pretrained weights from TIMM
 }
 
 # Training configuration (following paper settings)
@@ -92,7 +92,7 @@ AUGMENTATION_CONFIG = {
 # Model Validation Configuration
 VALIDATION_CONFIG = {
     "enable_validation": False,
-    "pretrained_model": "swin_tiny_patch4_window7_224",
-    "transfer_weights": False,  # Train from scratch for segmentation
+    "pretrained_model": "swin_tiny_patch4_window7_224",  # ImageNet pretrained Swin-T
+    "transfer_weights": True,  # Load ImageNet weights into encoder before training
     "validation_samples": 100,
 }
