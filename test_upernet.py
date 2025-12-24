@@ -26,17 +26,14 @@ def main():
     # Test 1: Create full model (Swin-T encoder + UperNet head)
     print("\n1. Creating full segmentation model (Swin-T + UperNet)...")
     try:
-        # Create model on CPU first to save GPU memory during initialization
         model = create_segmentation_model(SWIN_CONFIG, DOWNSTREAM_CONFIG)
         
-        # Get params before moving to GPU
         params = model.get_num_params()
         print(f"   Model created on CPU")
         print(f"   Encoder params: {params['encoder']:,}")
         print(f"   Head params: {params['head']:,}")
         print(f"   Total params: {params['total']:,}")
         
-        # Now move to GPU
         print(f"   Moving model to {device}...")
         model = model.to(device)
         model.eval()
@@ -85,7 +82,7 @@ def main():
             assert len(features) == 4, f"Expected 4 scales, got {len(features)}"
             print(f"   ✓ Got {len(features)} feature scales:")
             
-            expected_channels = [96, 192, 384, 768]  # Swin-T channel progression
+            expected_channels = [96, 192, 384, 768]
             for i, (feat, expected_c) in enumerate(zip(features, expected_channels)):
                 B, N, C = feat.shape
                 H = W = int(N ** 0.5)
@@ -118,6 +115,10 @@ def main():
         encoder_params = sum(p.numel() for p in frozen_model.encoder.parameters())
         trainable_params = sum(p.numel() for p in frozen_model.parameters() if p.requires_grad)
         
+        assert encoder_frozen, "Encoder parameters should not require grad"
+        assert head_trainable, "Head parameters should require grad"
+        
+        print(f"   ✓ Encoder frozen: {encoder_frozen} ({encoder_params:,} params)")
         print(f"   ✓ Head trainable: {head_trainable} ({trainable_params:,} params)")
         
         del frozen_model
@@ -129,10 +130,6 @@ def main():
         print(f"   ✗ Freezing test failed: {e}")
         import traceback
         traceback.print_exc()
-        returncuda.empty_cache()
-        
-    except Exception as e:
-        print(f"   ✗ Freezing test failed: {e}")
         return
     
     # Test 5: Batch processing
@@ -140,6 +137,10 @@ def main():
     try:
         with torch.no_grad():
             x = torch.randn(2, 3, 512, 512, device=device)
+            output = model(x)
+            
+            expected_shape = (2, 150, 512, 512)
+            assert output.shape == expected_shape, f"Expected {expected_shape}, got {output.shape}"
             print(f"   ✓ Batch processing: {tuple(x.shape)} → {tuple(output.shape)}")
             
             del x, output
@@ -151,10 +152,6 @@ def main():
         print(f"   ✗ Batch processing failed: {e}")
         import traceback
         traceback.print_exc()
-        returnrch.cuda.empty_cache()
-            
-    except Exception as e:
-        print(f"   ✗ Batch processing failed: {e}")
         return
     
     print("\n" + "=" * 70)
