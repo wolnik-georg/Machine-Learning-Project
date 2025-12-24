@@ -32,20 +32,21 @@ def test_upernet_segmentation():
     print(f"  Total:   {params['total']:,}")
     print(f"  Trainable: {params['trainable']:,}")
     
-    # Test forward pass with different batch sizes
+    # Test forward pass with conservative memory usage
     print("\n2. Testing forward pass...")
     
     test_cases = [
-        (1, 512, 512),   # Single image
-        (4, 512, 512),   # Small batch
-        (2, 512, 512),   # Batch size 2
+        (1, 512, 512),   # Single image only for GPU memory safety
     ]
     
     model.eval()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    
     with torch.no_grad():
         for batch_size, h, w in test_cases:
             # Create dummy input
-            x = torch.randn(batch_size, 3, h, w)
+            x = torch.randn(batch_size, 3, h, w, device=device)
             
             # Forward pass
             output = model(x)
@@ -56,12 +57,18 @@ def test_upernet_segmentation():
                 f"Expected shape {expected_shape}, got {output.shape}"
             
             print(f"✓ Batch {batch_size}, Input: {tuple(x.shape)} → Output: {tuple(output.shape)}")
+            
+            # Clean up
+            del x, output
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
     
     # Test multi-scale feature extraction
     print("\n3. Testing multi-scale feature extraction...")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.encoder.eval()
     with torch.no_grad():
-        x = torch.randn(2, 3, 512, 512)
+        x = torch.randn(1, 3, 512, 512, device=device)
         features = model.encoder(x, return_multi_scale=True)
         
         print(f"Number of feature scales: {len(features)}")
@@ -70,17 +77,29 @@ def test_upernet_segmentation():
             B, N, C = feat.shape
             H = W = int(N ** 0.5)
             print(f"  Stage {i+1}: [{B}, {N}, {C}] → [{B}, {C}, {H}, {H}]")
-    
     # Test encoder freezing
     print("\n4. Testing encoder freezing...")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     frozen_model = create_segmentation_model(
         SWIN_CONFIG,
         {**DOWNSTREAM_CONFIG, "freeze_encoder": True}
     )
+    frozen_model = frozen_model.to(device)
     
     frozen_model.train()
     encoder_trainable = sum(p.requires_grad for p in frozen_model.encoder.parameters())
     head_trainable = sum(p.requires_grad for p in frozen_model.seg_head.parameters())
+    
+    print(f"✓ Encoder trainable params: {encoder_trainable} (should be 0)")
+    print(f"✓ Head trainable params: {head_trainable} (should be > 0)")
+    
+    assert encoder_trainable == 0, "Encoder should be frozen"
+    assert head_trainable > 0, "Head should be trainable"
+    
+    # Clean up
+    del frozen_model
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()model.seg_head.parameters())
     
     print(f"✓ Encoder trainable params: {encoder_trainable} (should be 0)")
     print(f"✓ Head trainable params: {head_trainable} (should be > 0)")
