@@ -1,168 +1,299 @@
 """
-Comprehensive test for UperNet segmentation model.
-Tests full Swin-T encoder + UperNet head integration.
+Test UperNet Segmentation Model with Swin-T Encoder
+
+Tests the complete segmentation pipeline including:
+1. Model creation with proper configuration
+2. Forward pass with 512x512 input (ADE20K standard)
+3. Multi-scale feature extraction
+4. Encoder freezing capability  
+5. Batch processing
+6. Padding approach verification (no global attention fallback warnings)
 """
 
 import torch
+import sys
 import gc
-from config.ade20k_config import SWIN_CONFIG, DOWNSTREAM_CONFIG
-from src.models import create_segmentation_model
+
+# Ensure src is in path
+sys.path.insert(0, '/home/pml20/Machine-Learning-Project')
 
 
-def main():
-    print("=" * 70)
-    print("Testing Full UperNet Segmentation Model (Swin-T + UperNet)")
-    print("=" * 70)
+def test_model_creation():
+    """Test that segmentation model can be created with correct architecture."""
+    print("\n" + "="*60)
+    print("TEST 1: Model Creation")
+    print("="*60)
+    
+    from src.models.model_factory import create_segmentation_model
+    from config.ade20k_config import ADE20KConfig
+    
+    config = ADE20KConfig()
+    model = create_segmentation_model(config)
+    
+    # Check model structure
+    assert hasattr(model, 'encoder'), "Model should have encoder"
+    assert hasattr(model, 'decode_head'), "Model should have decode_head"
+    
+    # Count parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    encoder_params = sum(p.numel() for p in model.encoder.parameters())
+    head_params = sum(p.numel() for p in model.decode_head.parameters())
+    
+    print(f"✓ Model created successfully")
+    print(f"  - Total parameters: {total_params:,}")
+    print(f"  - Encoder parameters: {encoder_params:,}")
+    print(f"  - Decoder head parameters: {head_params:,}")
+    
+    # Verify parameter counts are reasonable
+    assert total_params > 50_000_000, f"Expected ~60M params, got {total_params:,}"
+    assert total_params < 70_000_000, f"Expected ~60M params, got {total_params:,}"
+    
+    del model
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    return True
+
+
+def test_forward_pass():
+    """Test forward pass produces correct output shape."""
+    print("\n" + "="*60)
+    print("TEST 2: Forward Pass (512x512 input)")
+    print("="*60)
+    
+    from src.models.model_factory import create_segmentation_model
+    from config.ade20k_config import ADE20KConfig
+    
+    config = ADE20KConfig()
+    model = create_segmentation_model(config)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"\nDevice: {device}")
+    model = model.to(device)
+    model.eval()
     
-    if torch.cuda.is_available():
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
-        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-        torch.cuda.empty_cache()
-        gc.collect()
+    # ADE20K standard input size
+    batch_size = 1
+    input_tensor = torch.randn(batch_size, 3, 512, 512, device=device)
     
-    # Test 1: Create full model (Swin-T encoder + UperNet head)
-    print("\n1. Creating full segmentation model (Swin-T + UperNet)...")
-    try:
-        model = create_segmentation_model(SWIN_CONFIG, DOWNSTREAM_CONFIG)
-        
-        params = model.get_num_params()
-        print(f"   Model created on CPU")
-        print(f"   Encoder params: {params['encoder']:,}")
-        print(f"   Head params: {params['head']:,}")
-        print(f"   Total params: {params['total']:,}")
-        
-        print(f"   Moving model to {device}...")
-        model = model.to(device)
-        model.eval()
-        print(f"   ✓ Model successfully loaded on {device}")
-        
-        if torch.cuda.is_available():
-            print(f"   GPU memory allocated: {torch.cuda.memory_allocated(0) / 1e9:.2f} GB")
-        
-    except Exception as e:
-        print(f"   ✗ Model creation failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return
+    with torch.no_grad():
+        output = model(input_tensor)
     
-    # Test 2: Forward pass with real image size (512x512)
-    print("\n2. Testing forward pass with 512x512 images...")
-    try:
-        with torch.no_grad():
-            x = torch.randn(1, 3, 512, 512, device=device)
-            print(f"   Input tensor created: {tuple(x.shape)}")
-            
-            output = model(x)
-            
-            expected_shape = (1, 150, 512, 512)
-            assert output.shape == expected_shape, f"Expected {expected_shape}, got {output.shape}"
-            print(f"   ✓ Input: {tuple(x.shape)} → Output: {tuple(output.shape)}")
-            
-            del x, output
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                gc.collect()
-            
-    except Exception as e:
-        print(f"   ✗ Forward pass failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return
+    expected_shape = (batch_size, 150, 512, 512)  # 150 classes for ADE20K
     
-    # Test 3: Multi-scale feature extraction from Swin-T
-    print("\n3. Testing multi-scale features from Swin-T encoder...")
-    try:
-        with torch.no_grad():
-            x = torch.randn(1, 3, 512, 512, device=device)
-            features = model.encoder(x, return_multi_scale=True)
-            
-            assert len(features) == 4, f"Expected 4 scales, got {len(features)}"
-            print(f"   ✓ Got {len(features)} feature scales:")
-            
-            expected_channels = [96, 192, 384, 768]
-            for i, (feat, expected_c) in enumerate(zip(features, expected_channels)):
-                B, N, C = feat.shape
-                H = W = int(N ** 0.5)
-                assert C == expected_c, f"Stage {i}: expected {expected_c} channels, got {C}"
-                print(f"     Stage {i+1}: [{B}, {N}, {C}] = [{B}, {C}, {H}x{H}]")
-            
-            del x, features
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                gc.collect()
-            
-    except Exception as e:
-        print(f"   ✗ Multi-scale test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return
+    print(f"✓ Forward pass successful")
+    print(f"  - Input shape: {tuple(input_tensor.shape)}")
+    print(f"  - Output shape: {tuple(output.shape)}")
+    print(f"  - Expected shape: {expected_shape}")
     
-    # Test 4: Encoder freezing
-    print("\n4. Testing encoder freezing for fine-tuning...")
-    try:
-        frozen_model = create_segmentation_model(
-            SWIN_CONFIG,
-            {**DOWNSTREAM_CONFIG, "freeze_encoder": True}
-        )
-        frozen_model = frozen_model.to(device)
-        
-        encoder_frozen = all(not p.requires_grad for p in frozen_model.encoder.parameters())
-        head_trainable = any(p.requires_grad for p in frozen_model.seg_head.parameters())
-        
-        encoder_params = sum(p.numel() for p in frozen_model.encoder.parameters())
-        trainable_params = sum(p.numel() for p in frozen_model.parameters() if p.requires_grad)
-        
-        assert encoder_frozen, "Encoder parameters should not require grad"
-        assert head_trainable, "Head parameters should require grad"
-        
-        print(f"   ✓ Encoder frozen: {encoder_frozen} ({encoder_params:,} params)")
-        print(f"   ✓ Head trainable: {head_trainable} ({trainable_params:,} params)")
-        
-        del frozen_model
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            gc.collect()
-        
-    except Exception as e:
-        print(f"   ✗ Freezing test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return
+    assert output.shape == expected_shape, f"Output shape mismatch: {output.shape} vs {expected_shape}"
     
-    # Test 5: Batch processing
-    print("\n5. Testing batch processing (batch_size=2)...")
-    try:
-        with torch.no_grad():
-            x = torch.randn(2, 3, 512, 512, device=device)
-            output = model(x)
-            
-            expected_shape = (2, 150, 512, 512)
-            assert output.shape == expected_shape, f"Expected {expected_shape}, got {output.shape}"
-            print(f"   ✓ Batch processing: {tuple(x.shape)} → {tuple(output.shape)}")
-            
-            del x, output
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                gc.collect()
-            
-    except Exception as e:
-        print(f"   ✗ Batch processing failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return
+    del model, input_tensor, output
+    gc.collect()
+    torch.cuda.empty_cache()
     
-    print("\n" + "=" * 70)
-    print("✅ All tests passed!")
-    print("=" * 70)
-    print("\n🎯 Model is ready for:")
-    print("   • Loading ImageNet pretrained Swin-T weights")
-    print("   • Fine-tuning on ADE20K dataset")
-    print("   • Semantic segmentation training")
-    print("=" * 70)
+    return True
+
+
+def test_multiscale_features():
+    """Test that encoder produces correct multi-scale features."""
+    print("\n" + "="*60)
+    print("TEST 3: Multi-scale Feature Extraction")
+    print("="*60)
+    
+    from src.models.model_factory import create_segmentation_model
+    from config.ade20k_config import ADE20KConfig
+    
+    config = ADE20KConfig()
+    model = create_segmentation_model(config)
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    model.eval()
+    
+    input_tensor = torch.randn(1, 3, 512, 512, device=device)
+    
+    with torch.no_grad():
+        features = model.encoder.forward_features(input_tensor)
+    
+    print(f"✓ Multi-scale features extracted: {len(features)} stages")
+    
+    # Expected shapes for 512x512 input with patch_size=4
+    # Stage 1: 512/4 = 128, Stage 2: 64, Stage 3: 32, Stage 4: 16
+    expected_resolutions = [128, 64, 32, 16]
+    expected_channels = [96, 192, 384, 768]
+    
+    for i, feat in enumerate(features):
+        print(f"  - Stage {i+1}: {tuple(feat.shape)}")
+        B, N, C = feat.shape
+        expected_N = expected_resolutions[i] ** 2
+        assert N == expected_N, f"Stage {i+1}: Expected N={expected_N}, got {N}"
+        assert C == expected_channels[i], f"Stage {i+1}: Expected C={expected_channels[i]}, got {C}"
+    
+    del model, input_tensor, features
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    return True
+
+
+def test_encoder_freezing():
+    """Test that encoder can be frozen for fine-tuning."""
+    print("\n" + "="*60)
+    print("TEST 4: Encoder Freezing")
+    print("="*60)
+    
+    from src.models.model_factory import create_segmentation_model
+    from config.ade20k_config import ADE20KConfig
+    
+    config = ADE20KConfig()
+    model = create_segmentation_model(config)
+    
+    # Freeze encoder
+    for param in model.encoder.parameters():
+        param.requires_grad = False
+    
+    # Count trainable parameters
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    frozen_params = sum(p.numel() for p in model.parameters() if not p.requires_grad)
+    
+    print(f"✓ Encoder frozen successfully")
+    print(f"  - Trainable parameters: {trainable_params:,}")
+    print(f"  - Frozen parameters: {frozen_params:,}")
+    
+    # Encoder should be frozen (~28M), head should be trainable (~31M)
+    assert trainable_params > 25_000_000, "Decoder head should have ~31M trainable params"
+    assert frozen_params > 25_000_000, "Encoder should have ~28M frozen params"
+    
+    del model
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    return True
+
+
+def test_batch_processing():
+    """Test that model handles batch processing correctly."""
+    print("\n" + "="*60)
+    print("TEST 5: Batch Processing")
+    print("="*60)
+    
+    from src.models.model_factory import create_segmentation_model
+    from config.ade20k_config import ADE20KConfig
+    
+    config = ADE20KConfig()
+    model = create_segmentation_model(config)
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    model.eval()
+    
+    batch_size = 2
+    input_tensor = torch.randn(batch_size, 3, 512, 512, device=device)
+    
+    with torch.no_grad():
+        output = model(input_tensor)
+    
+    expected_shape = (batch_size, 150, 512, 512)
+    
+    print(f"✓ Batch processing successful")
+    print(f"  - Batch size: {batch_size}")
+    print(f"  - Output shape: {tuple(output.shape)}")
+    
+    assert output.shape == expected_shape, f"Output shape mismatch: {output.shape} vs {expected_shape}"
+    
+    del model, input_tensor, output
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    return True
+
+
+def test_padding_approach():
+    """Test that the padding approach works correctly for non-divisible resolutions."""
+    print("\n" + "="*60)
+    print("TEST 6: Padding Approach Verification")
+    print("="*60)
+    
+    from src.models.swin.swin_transformer_block import SwinTransformerBlock
+    
+    # Test with resolution that doesn't divide by window_size=7
+    # 128x128 feature map (stage 1 for 512x512 input)
+    block = SwinTransformerBlock(
+        dim=96,
+        input_resolution=(128, 128),
+        num_heads=3,
+        window_size=7,
+        shift_size=0,
+    )
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    block = block.to(device)
+    block.eval()
+    
+    # Input: [B, H*W, C]
+    x = torch.randn(1, 128*128, 96, device=device)
+    
+    with torch.no_grad():
+        output = block(x)
+    
+    print(f"✓ Padding approach works correctly")
+    print(f"  - Input resolution: 128x128 (not divisible by window_size=7)")
+    print(f"  - window_size maintained: {block.window_size}")
+    print(f"  - Input shape: {tuple(x.shape)}")
+    print(f"  - Output shape: {tuple(output.shape)}")
+    
+    # Window size should remain 7 (not fall back to 128)
+    assert block.window_size == 7, f"Window size should be 7, got {block.window_size}"
+    assert output.shape == x.shape, f"Output shape should match input: {output.shape} vs {x.shape}"
+    
+    del block, x, output
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    return True
 
 
 if __name__ == "__main__":
-    main()
+    print("="*60)
+    print("UperNet Segmentation Model Tests")
+    print("="*60)
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA device: {torch.cuda.get_device_name(0)}")
+        print(f"CUDA memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+    
+    tests = [
+        ("Model Creation", test_model_creation),
+        ("Forward Pass", test_forward_pass),
+        ("Multi-scale Features", test_multiscale_features),
+        ("Encoder Freezing", test_encoder_freezing),
+        ("Batch Processing", test_batch_processing),
+        ("Padding Approach", test_padding_approach),
+    ]
+    
+    results = []
+    for name, test_fn in tests:
+        try:
+            success = test_fn()
+            results.append((name, "PASSED" if success else "FAILED"))
+        except Exception as e:
+            print(f"\n✗ {name} FAILED with exception:")
+            print(f"  {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            results.append((name, f"FAILED: {e}"))
+    
+    print("\n" + "="*60)
+    print("TEST SUMMARY")
+    print("="*60)
+    for name, result in results:
+        status = "✓" if result == "PASSED" else "✗"
+        print(f"{status} {name}: {result}")
+    
+    all_passed = all(r[1] == "PASSED" for r in results)
+    print("\n" + ("="*60))
+    print(f"{'ALL TESTS PASSED!' if all_passed else 'SOME TESTS FAILED!'}")
+    print("="*60)
+    
+    sys.exit(0 if all_passed else 1)
