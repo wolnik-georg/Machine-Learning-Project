@@ -23,6 +23,11 @@ from .metrics import (
     plot_iou_per_class,
     plot_segmentation_training_curves,
 )
+from .segmentation_trainer import (
+    train_one_epoch_segmentation,
+    evaluate_segmentation,
+    run_segmentation_training_loop,
+)
 from .early_stopping import EarlyStopping
 
 
@@ -46,4 +51,8 @@ __all__ = [
     "calculate_segmentation_metrics",
     "plot_iou_per_class",
     "plot_segmentation_training_curves",
+    # Segmentation trainer
+    "train_one_epoch_segmentation",
+    "evaluate_segmentation",
+    "run_segmentation_training_loop",
 ]
