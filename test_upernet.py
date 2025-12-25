@@ -27,7 +27,7 @@ def test_model_creation():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
     
     # Check model structure
     assert hasattr(model, 'encoder'), "Model should have encoder"
@@ -63,7 +63,7 @@ def test_forward_pass():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -101,7 +101,7 @@ def test_multiscale_features():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -142,7 +142,7 @@ def test_encoder_freezing():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
     
     # Freeze encoder
     for param in model.encoder.parameters():
@@ -176,7 +176,7 @@ def test_batch_processing():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
