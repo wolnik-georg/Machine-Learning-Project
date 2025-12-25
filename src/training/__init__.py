@@ -15,6 +15,13 @@ from .metrics import (
     plot_training_curves,
     plot_lr_schedule,
     plot_model_validation_comparison,
+    # Segmentation metrics
+    compute_iou_per_class,
+    compute_mean_iou,
+    compute_pixel_accuracy,
+    calculate_segmentation_metrics,
+    plot_iou_per_class,
+    plot_segmentation_training_curves,
 )
 from .early_stopping import EarlyStopping
 
@@ -32,4 +39,11 @@ __all__ = [
     "EarlyStopping",
     "plot_lr_schedule",
     "plot_model_validation_comparison",
+    # Segmentation metrics
+    "compute_iou_per_class",
+    "compute_mean_iou",
+    "compute_pixel_accuracy",
+    "calculate_segmentation_metrics",
+    "plot_iou_per_class",
+    "plot_segmentation_training_curves",
 ]
