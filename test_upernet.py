@@ -25,9 +25,8 @@ def test_model_creation():
     print("="*60)
     
     from src.models.model_factory import create_segmentation_model
-    from config.ade20k_config import ADE20KConfig
+    from config import ade20k_config as config
     
-    config = ADE20KConfig()
     model = create_segmentation_model(config)
     
     # Check model structure
@@ -62,9 +61,8 @@ def test_forward_pass():
     print("="*60)
     
     from src.models.model_factory import create_segmentation_model
-    from config.ade20k_config import ADE20KConfig
+    from config import ade20k_config as config
     
-    config = ADE20KConfig()
     model = create_segmentation_model(config)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -101,9 +99,8 @@ def test_multiscale_features():
     print("="*60)
     
     from src.models.model_factory import create_segmentation_model
-    from config.ade20k_config import ADE20KConfig
+    from config import ade20k_config as config
     
-    config = ADE20KConfig()
     model = create_segmentation_model(config)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -143,9 +140,8 @@ def test_encoder_freezing():
     print("="*60)
     
     from src.models.model_factory import create_segmentation_model
-    from config.ade20k_config import ADE20KConfig
+    from config import ade20k_config as config
     
-    config = ADE20KConfig()
     model = create_segmentation_model(config)
     
     # Freeze encoder
@@ -178,9 +174,8 @@ def test_batch_processing():
     print("="*60)
     
     from src.models.model_factory import create_segmentation_model
-    from config.ade20k_config import ADE20KConfig
+    from config import ade20k_config as config
     
-    config = ADE20KConfig()
     model = create_segmentation_model(config)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
