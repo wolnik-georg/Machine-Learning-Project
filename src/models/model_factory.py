@@ -166,17 +166,20 @@ def create_resnet_model(config):
     return model
 
 
-def create_segmentation_model(swin_config, downstream_config):
+def create_segmentation_model(swin_config, downstream_config, load_pretrained=True):
     """
     Create segmentation model with Swin encoder + UperNet head.
     
     Args:
         swin_config: SWIN_CONFIG dictionary from config
         downstream_config: DOWNSTREAM_CONFIG dictionary from config
+        load_pretrained: If True, load ImageNet pretrained weights for encoder
     
     Returns:
         SegmentationModelWrapper containing encoder + segmentation head
     """
+    from src.utils.load_weights import load_pretrained_reference, transfer_weights
+    
     # Create Swin Transformer encoder
     encoder = SwinTransformerModel(
         img_size=swin_config["img_size"],  # 512 for ADE20K
@@ -217,5 +220,26 @@ def create_segmentation_model(swin_config, downstream_config):
         seg_head=seg_head,
         freeze_encoder=downstream_config.get("freeze_encoder", False),
     )
+    
+    # Load pretrained ImageNet weights for encoder
+    if load_pretrained and downstream_config.get("use_pretrained", True):
+        pretrained_model_name = "swin_tiny_patch4_window7_224"  # TIMM model name
+        print(f"Loading pretrained weights from TIMM: {pretrained_model_name}")
+        
+        pretrained_model = load_pretrained_reference(
+            model_name=pretrained_model_name,
+            device="cpu",  # Load to CPU first, then move to device
+        )
+        
+        if pretrained_model is not None:
+            stats = transfer_weights(
+                custom_model=model,
+                pretrained_model=pretrained_model,
+                encoder_only=True,  # Only transfer encoder weights
+            )
+            print(f"Weight transfer complete: {stats['transferred']} layers transferred, "
+                  f"{stats['missing']} missing, {stats['size_mismatches']} size mismatches")
+        else:
+            print("Warning: Could not load pretrained weights. Training from scratch.")
     
     return model

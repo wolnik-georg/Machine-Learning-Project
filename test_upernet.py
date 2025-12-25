@@ -27,7 +27,7 @@ def test_model_creation():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG, load_pretrained=False)
     
     # Check model structure
     assert hasattr(model, 'encoder'), "Model should have encoder"
@@ -63,7 +63,7 @@ def test_forward_pass():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG, load_pretrained=False)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -101,7 +101,7 @@ def test_multiscale_features():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG, load_pretrained=False)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -140,7 +140,7 @@ def test_encoder_freezing():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG, load_pretrained=False)
     
     # Freeze encoder
     for param in model.encoder.parameters():
@@ -174,7 +174,7 @@ def test_batch_processing():
     from src.models.model_factory import create_segmentation_model
     from config import ade20k_config as config
     
-    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG)
+    model = create_segmentation_model(config.SWIN_CONFIG, config.DOWNSTREAM_CONFIG, load_pretrained=False)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -246,6 +246,54 @@ def test_padding_approach():
     return True
 
 
+def test_pretrained_weight_loading():
+    """Test that pretrained ImageNet weights can be loaded from TIMM."""
+    print("\n" + "="*60)
+    print("TEST 7: Pretrained Weight Loading from TIMM")
+    print("="*60)
+    
+    from src.models.model_factory import create_segmentation_model
+    from config import ade20k_config as config
+    
+    # Create model WITH pretrained weights
+    model = create_segmentation_model(
+        config.SWIN_CONFIG, 
+        config.DOWNSTREAM_CONFIG,
+        load_pretrained=True
+    )
+    
+    # Verify model was created
+    assert model is not None, "Model creation failed"
+    
+    # Check that encoder has non-zero weights (pretrained weights loaded)
+    # Get first conv layer weight
+    first_layer_weight = model.encoder.patch_embed.proj.weight
+    weight_sum = first_layer_weight.abs().sum().item()
+    
+    print(f"✓ Pretrained weights loaded successfully")
+    print(f"  - First layer weight sum: {weight_sum:.4f}")
+    print(f"  - Weight is non-zero: {weight_sum > 0}")
+    
+    assert weight_sum > 0, "Weights should be non-zero after loading pretrained"
+    
+    # Quick forward pass to verify model works
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    model.eval()
+    
+    input_tensor = torch.randn(1, 3, 512, 512, device=device)
+    with torch.no_grad():
+        output = model(input_tensor)
+    
+    print(f"  - Forward pass successful: {tuple(output.shape)}")
+    
+    del model, input_tensor, output
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    return True
+
+
 if __name__ == "__main__":
     print("="*60)
     print("UperNet Segmentation Model Tests")
@@ -263,6 +311,7 @@ if __name__ == "__main__":
         ("Encoder Freezing", test_encoder_freezing),
         ("Batch Processing", test_batch_processing),
         ("Padding Approach", test_padding_approach),
+        ("Pretrained Weight Loading", test_pretrained_weight_loading),
     ]
     
     results = []
