@@ -4,6 +4,9 @@ import math
 from typing import Optional, List, Dict, Any
 from torch.utils.checkpoint import checkpoint
 
+from mmdet.registry import MODELS
+from mmengine.model import BaseModule
+
 from .patch_embedding import PatchEmbed
 from .basic_layer import BasicLayer
 from .patch_merging import PatchMerging
@@ -11,7 +14,9 @@ from .conv_downsample import ConvDownsample
 from .window_utils import generate_drop_path_rates
 
 
-class SwinTransformerModel(nn.Module):
+# TODO: make it dependend on a Config variable (also integrate main like this)
+@MODELS.register_module()
+class SwinTransformerModel(BaseModule):
     def __init__(
         self,
         img_size: int | None = 224,
@@ -33,9 +38,11 @@ class SwinTransformerModel(nn.Module):
         use_absolute_pos_embed: bool = False,  # Ablation flag: True for absolute pos embed (ViT-style), False for relative bias
         use_hierarchical_merge: bool = False,  # Ablation flag: False for hierarchical PatchMerging, True for single-resolution conv
         use_gradient_checkpointing: bool = False,  # Enable gradient checkpointing to save memory
+        init_cfg: dict | None = None,   # MMEngine weight initialization config (optional)
         **kwargs: Dict[str, Any]
     ):
-        super().__init__()
+        # TODO: this needs to be dependend on the config too
+        super().__init__(init_cfg=init_cfg)
 
         # Store configuration for reference
         self.config = {
@@ -157,18 +164,27 @@ class SwinTransformerModel(nn.Module):
 
         self.use_gradient_checkpointing = use_gradient_checkpointing
 
-        # Initialize weights
-        self.apply(self._init_weights)
+        # TODO: also initialize weight when not using mm library
 
-    def _init_weights(self, m):
-        """Initialize model weights according to swin transformer paper."""
-        if isinstance(m, nn.Linear):
-            nn.init.trunc_normal_(m.weight, std=0.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
+    def init_weights(self):
+        """Initialize weights.
+
+        If init_cfg is set, MMEngine will load the checkpoint.
+        Otherwise do Swin default init.
+        """
+        if getattr(self, 'init_cfg', None) is not None:
+            super().init_weights()
+            return
+
+        # Default Swin initialization
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
+                nn.init.constant_(m.weight, 1.0)
 
     def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         """Extract features through transformer stages"""
