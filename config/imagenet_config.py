@@ -29,7 +29,7 @@ MODEL_CONFIGS = {
         "attention_dropout": 0.0,
         "projection_dropout": 0.0,
         "drop_path_rate": 0.08,
-        "use_shifted_window": True,
+        "use_shifted_window": False,
         "use_relative_bias": True,
         "use_absolute_pos_embed": False,
         "use_hierarchical_merge": False,
@@ -69,7 +69,7 @@ DATA_CONFIG = {
     # Subset configuration for faster training
     "n_train": 100000,  # Increased training samples for better generalization
     "n_test": 50000,  # Number of validation/test samples (None for full dataset) - using full validation set
-    "stratified": True  # Maintain class distribution in train/test split for balanced sampling
+    "stratified": True,  # Maintain class distribution in train/test split for balanced sampling
 }
 
 # Swin Transformer configuration (legacy - kept for compatibility)
