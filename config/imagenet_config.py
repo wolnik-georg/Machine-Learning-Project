@@ -32,7 +32,7 @@ MODEL_CONFIGS = {
         "use_shifted_window": True,
         "use_relative_bias": True,
         "use_absolute_pos_embed": False,
-        "use_hierarchical_merge": True,
+        "use_hierarchical_merge": False,
         "use_gradient_checkpointing": False,
     },
     "vit": {
@@ -100,13 +100,13 @@ DOWNSTREAM_CONFIG = {
 TRAINING_CONFIG = {
     "seed": 42,  # Random seed for reproducibility
     "deterministic": False,  # Set to True for fully reproducible (but slower) training
-    "learning_rate": 3e-4,  # Reduced for 40 epochs (longer training needs lower LR)
-    "num_epochs": 2,  # Increased for more thorough training
-    "warmup_epochs": 1,  # ~7.5% of 40 epochs for stability
+    "learning_rate": 3e-4,  # Optimal for batch_size=128, 50 epochs (scaled from Swin paper)
+    "num_epochs": 50,  # Full training duration for Swin Transformer
+    "warmup_epochs": 3,  # ~6% of 50 epochs for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
-    "weight_decay": 0.02,  # Reduced for training schedule (less regularization needed)
-    "min_lr": 1e-4,  # Lower minimum LR for longer training
-    "lr_scheduler_type": "cosine",  # Pure cosine annealing as in Swin paper (no hybrid approaches)
+    "weight_decay": 0.02,  # Balanced regularization
+    "min_lr": 5e-5,  # Lower minimum LR for full cosine decay
+    "lr_scheduler_type": "cosine",  # Pure cosine annealing as in Swin paper
     "mixed_precision": True,
     "compile": True,
     # Early stopping configuration
