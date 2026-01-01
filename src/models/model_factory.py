@@ -269,13 +269,16 @@ def create_resnet_segmentation_model(resnet_config, downstream_config):
     variant = resnet_config.get("variant", "resnet101")
     pretrained = resnet_config.get("pretrained", True)
     img_size = resnet_config.get("img_size", 512)
+    use_gradient_checkpointing = resnet_config.get("use_gradient_checkpointing", False)
     
-    print(f"Creating ResNet segmentation model: {variant}, pretrained={pretrained}")
+    print(f"Creating ResNet segmentation model: {variant}, pretrained={pretrained}, "
+          f"gradient_checkpointing={use_gradient_checkpointing}")
     
     # Create ResNet feature extractor
     encoder = ResNetFeatureExtractor(
         variant=variant,
         pretrained=pretrained,
+        use_gradient_checkpointing=use_gradient_checkpointing,
     )
     encoder.set_img_size(img_size)
     

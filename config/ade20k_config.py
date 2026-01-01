@@ -16,7 +16,7 @@ DATA_CONFIG = {
     "dataset": "ADE20K",
     "use_batch_for_val": False,
     "val_batch": 5,
-    "batch_size": 16,
+    "batch_size": 16,  # Same as Swin-T for fair comparison (requires gradient checkpointing for ResNet-101)
     "num_workers": 8,
     "root": "./datasets",  # Will check shared storage first, then download if needed
     "img_size": 512,  # ADE20K resolution (512 is standard despite window_size mismatch)
@@ -55,7 +55,7 @@ RESNET_CONFIG = {
     "pretrained": True,  # Load ImageNet pretrained weights from torchvision
     "img_size": 512,  # ADE20K resolution
     "layers": [3, 4, 23, 3],  # ResNet-101 layers (use [3, 4, 6, 3] for ResNet-50)
-    "use_gradient_checkpointing": False,  # Enable for memory efficiency if needed
+    "use_gradient_checkpointing": True,  # Enable for memory efficiency on 12GB GPUs
 }
 
 # =============================================================================

@@ -6,6 +6,7 @@ Wraps torchvision ResNet to extract multi-scale features compatible with UperNet
 
 import torch
 import torch.nn as nn
+from torch.utils.checkpoint import checkpoint
 from torchvision import models
 from torchvision.models import ResNet101_Weights, ResNet50_Weights
 from typing import List, Optional
@@ -42,9 +43,11 @@ class ResNetFeatureExtractor(nn.Module):
         variant: str = 'resnet101',
         pretrained: bool = True,
         replace_stride_with_dilation: Optional[List[bool]] = None,
+        use_gradient_checkpointing: bool = False,
     ):
         super().__init__()
         self.variant = variant
+        self.use_gradient_checkpointing = use_gradient_checkpointing
         
         # Load base ResNet model
         if variant == 'resnet101':
@@ -108,11 +111,17 @@ class ResNetFeatureExtractor(nn.Module):
         x = self.resnet.relu(x)
         x = self.resnet.maxpool(x)
         
-        # Extract features from each layer
-        c1 = self.resnet.layer1(x)    # [B, 256, H/4, W/4]
-        c2 = self.resnet.layer2(c1)   # [B, 512, H/8, W/8]
-        c3 = self.resnet.layer3(c2)   # [B, 1024, H/16, W/16]
-        c4 = self.resnet.layer4(c3)   # [B, 2048, H/32, W/32]
+        # Extract features from each layer (with optional gradient checkpointing)
+        if self.use_gradient_checkpointing and self.training:
+            c1 = checkpoint(self.resnet.layer1, x, use_reentrant=False)    # [B, 256, H/4, W/4]
+            c2 = checkpoint(self.resnet.layer2, c1, use_reentrant=False)   # [B, 512, H/8, W/8]
+            c3 = checkpoint(self.resnet.layer3, c2, use_reentrant=False)   # [B, 1024, H/16, W/16]
+            c4 = checkpoint(self.resnet.layer4, c3, use_reentrant=False)   # [B, 2048, H/32, W/32]
+        else:
+            c1 = self.resnet.layer1(x)    # [B, 256, H/4, W/4]
+            c2 = self.resnet.layer2(c1)   # [B, 512, H/8, W/8]
+            c3 = self.resnet.layer3(c2)   # [B, 1024, H/16, W/16]
+            c4 = self.resnet.layer4(c3)   # [B, 2048, H/32, W/32]
         
         if return_multi_scale:
             return [c1, c2, c3, c4]
