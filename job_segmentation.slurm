@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=gpu-teaching-7d
 #SBATCH --gpus=1
+#SBATCH --constraint=a100
 #SBATCH --mem=64G
 #SBATCH --time=168:00:00
 #SBATCH --job-name=resnet101_ade20k_seg
