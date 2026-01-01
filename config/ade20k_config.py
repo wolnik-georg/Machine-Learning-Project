@@ -16,7 +16,7 @@ DATA_CONFIG = {
     "dataset": "ADE20K",
     "use_batch_for_val": False,
     "val_batch": 5,
-    "batch_size": 16,  # Requires A100 GPU (~40GB VRAM) for ResNet-101
+    "batch_size": 8,  # Use 8 for RTX 4070 (12GB); batch_size=16 requires A100 (40GB+)
     "num_workers": 8,
     "root": "./datasets",  # Will check shared storage first, then download if needed
     "img_size": 512,  # ADE20K resolution (512 is standard despite window_size mismatch)
