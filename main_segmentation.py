@@ -47,7 +47,7 @@ def setup_device() -> torch.device:
 
 # Choose encoder backbone: "swin" or "resnet"
 # Set this to "resnet" to train ResNet-101 + UperNet
-ENCODER_TYPE = "swin"  # Options: "swin", "resnet"
+ENCODER_TYPE = "resnet"  # Options: "swin", "resnet"
 
 
 def main():
