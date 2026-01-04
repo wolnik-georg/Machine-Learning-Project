@@ -170,10 +170,10 @@ class SwinTransformerModel(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor, return_multi_scale: bool = False) -> torch.Tensor:
         """Extract features through transformer stages"""
         x, (H, W) = self.patch_embed(x)
-        if self.out_indices is not None:
+        if self.out_indices is not None or return_multi_scale:
             outs = []
             for i, layer in enumerate(self.layers):
                 x, H, W = layer(x, H, W)
@@ -187,9 +187,9 @@ class SwinTransformerModel(nn.Module):
                 x, H, W = layer(x, H, W)
         return x
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, return_multi_scale: bool = False) -> torch.Tensor:
         """Complete forward pass through Swin Transformer."""
-        x = self.forward_features(x)
+        x = self.forward_features(x, return_multi_scale=return_multi_scale)
         return x
 
     def get_model_info(self) -> Dict[str, Any]:
