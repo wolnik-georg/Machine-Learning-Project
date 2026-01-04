@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-2d   # your long partition
+#SBATCH --partition=gpu-teaching-7d   # your long partition
 #SBATCH --gpus=1
 #SBATCH --exclusive                      # ← NO sharing with other users → fixes node contention
-#SBATCH --time=48:00:00                  # 168 hours for 40-epoch training
+#SBATCH --time=168:00:00                  # 168 hours for 40-epoch training
 #SBATCH --job-name=pretrained_swin_object_detection         # job name
 #SBATCH --output=logs/%j_%x.out          # includes job name → easier to find
 #SBATCH --error=logs/%j_%x.err
@@ -25,6 +25,6 @@ export MKL_NUM_THREADS=2
 # === Run your training ===
 apptainer run --nv \
     --bind /home/pml17:/home/pml17 \
-    pml_test.sif \
-    python od_main.py
+    od_mmdet.sif \
+    python main_od.py
     

@@ -8,9 +8,9 @@
 # pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 
 # Core ML dependencies
-torch>=2.0.0
-torchvision>=0.15.0
-numpy>=1.21.0
+torch==2.1.0
+torchvision==0.16.0
+numpy>=1.21,<2
 
 # Image processing
 Pillow>=9.0.0
@@ -30,6 +30,11 @@ tqdm>=4.64.0
 # Testing and development
 pytest>=7.0.0
 pytest-cov>=4.0.0
+
+# Object detection
+mmengine>=0.10.0
+mmcv>=2.0.0,<2.2.0
+mmdet>=3.3.0
 
 # Optional: For notebook testing (uncomment if needed)
 # nbval>=0.10.0

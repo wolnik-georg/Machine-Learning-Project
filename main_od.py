@@ -1,3 +1,5 @@
+import src.models.swin.swin_transformer_model
+
 from mmengine.config import Config
 from mmengine.runner import Runner
 

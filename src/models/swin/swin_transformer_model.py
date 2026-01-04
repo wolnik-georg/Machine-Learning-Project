@@ -4,8 +4,15 @@ import math
 from typing import Optional, List, Dict, Any
 from torch.utils.checkpoint import checkpoint
 
-from mmdet.registry import MODELS
-from mmengine.model import BaseModule
+try:
+    from mmdet.registry import MODELS
+except Exception:
+    MODELS = None
+
+try:
+    from mmengine.model import BaseModule
+except Exception:
+    BaseModule = None
 
 from .patch_embedding import PatchEmbed
 from .basic_layer import BasicLayer
@@ -14,9 +21,16 @@ from .conv_downsample import ConvDownsample
 from .window_utils import generate_drop_path_rates
 
 
-# TODO: make it dependend on a Config variable (also integrate main like this)
-@MODELS.register_module()
-class SwinTransformerModel(BaseModule):
+def _optional_mmdet_register():
+    if MODELS is None:
+        def deco(cls):
+            return cls
+        return deco
+    return MODELS.register_module()
+
+@_optional_mmdet_register()
+class SwinTransformerModel((BaseModule if BaseModule is not None else nn.Module)):
+
     def __init__(
         self,
         img_size: int | None = 224,
@@ -41,8 +55,12 @@ class SwinTransformerModel(BaseModule):
         init_cfg: dict | None = None,   # MMEngine weight initialization config (optional)
         **kwargs: Dict[str, Any]
     ):
-        # TODO: this needs to be dependend on the config too
-        super().__init__(init_cfg=init_cfg)
+        if BaseModule is not None:
+            super().__init__(init_cfg=init_cfg)
+        else:
+            super().__init__()
+            # In plain PyTorch mode, init_cfg is not used.
+            self.init_cfg = init_cfg
 
         # Store configuration for reference
         self.config = {
@@ -164,15 +182,13 @@ class SwinTransformerModel(BaseModule):
 
         self.use_gradient_checkpointing = use_gradient_checkpointing
 
-        # TODO: also initialize weight when not using mm library
-
     def init_weights(self):
         """Initialize weights.
 
-        If init_cfg is set, MMEngine will load the checkpoint.
+        If init_cfg is set and MMEngine is available, MMEngine will handle it.
         Otherwise do Swin default init.
         """
-        if getattr(self, 'init_cfg', None) is not None:
+        if BaseModule is not None and getattr(self, "init_cfg", None) is not None:
             super().init_weights()
             return
 
@@ -185,11 +201,15 @@ class SwinTransformerModel(BaseModule):
             elif isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
+            elif isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out")
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
-    def forward_features(self, x: torch.Tensor, return_multi_scale: bool = False) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         """Extract features through transformer stages"""
         x, (H, W) = self.patch_embed(x)
-        if self.out_indices is not None or return_multi_scale:
+        if self.out_indices is not None:
             outs = []
             for i, layer in enumerate(self.layers):
                 x, H, W = layer(x, H, W)
@@ -203,9 +223,9 @@ class SwinTransformerModel(BaseModule):
                 x, H, W = layer(x, H, W)
         return x
 
-    def forward(self, x: torch.Tensor, return_multi_scale: bool = False) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Complete forward pass through Swin Transformer."""
-        x = self.forward_features(x, return_multi_scale=return_multi_scale)
+        x = self.forward_features(x)
         return x
 
     def get_model_info(self) -> Dict[str, Any]:

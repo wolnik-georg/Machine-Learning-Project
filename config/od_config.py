@@ -1,38 +1,60 @@
+from .base_config import SWIN_PRESETS, SEED_CONFIG
+
 # ============================================================
 # Basics
 # ============================================================
 
-SEED = 42
-IMG_SIZE = 224  # pretrained image size
-
 PROJECT_ROOT = "/home/pml17/Machine-Learning-Project"
-DATA_ROOT = f"{PROJECT_ROOT}/datasets/coco"
-RUN_ROOT = f"{PROJECT_ROOT}/runs/pretrained_swin"
-CHECKPOINT_PATH = f"{RUN_ROOT}/weights.pth"
 
-work_dir = f"{PROJECT_ROOT}/cascade_mask_rcnn_swin_fpn_coco"
+# Model type selection for comparison experiments
+MODEL_TYPE = "swin"   #Options: "swin" or "resnet"
+SWIN_VARIANT = "tiny" # Options: "tiny", "small", "base", "large" (only used if MODEL_TYPE == "swin")
 
-# 1x schedule in = 13 epochs (you use 12)
-MAX_EPOCHS = 12
+IMG_SIZE = 224  # pretrained image size (ImageNet standard)
 
-# Optim
-LR = 1e-4
-WEIGHT_DECAY = 0.05
+# Can be overridden with a local path if needed
+if MODEL_TYPE == "swin":
+    CHECKPOINT = f"timm:swin_{SWIN_VARIANT}_patch4_window7_224.a1_in1k"
+elif MODEL_TYPE == "resnet":
+    CHECKPOINT = "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet50_a1_0-14fe96d1.pth"
+else:
+    raise ValueError(f"Unknown MODEL_TYPE: {MODEL_TYPE}")
+
+# Experiment output directory
+RUN_NAME = f"cascade_mask_rcnn_{MODEL_TYPE}" + (f"_{SWIN_VARIANT}" if MODEL_TYPE == "swin" else "")
+work_dir = f"{PROJECT_ROOT}/runs/{RUN_NAME}_fpn_coco"
+
+# Training schedule
+
+# 3x schedule: 36 epochs
+MAX_EPOCHS = 12 # 1x schedule
+MILESTONES = [8, 11]  # for 1x schedule
+# MILESTONES = [27, 33]  # for 3x schedule
 
 # Data loading
-BATCH_SIZE = 2
-NUM_WORKERS = 2
-SAMPLE_SIZE = 20000
 
-# COCO
+# effective batch size = BATCH_SIZE * ACCUMULATIVE_COUNTS * number_of_GPUs
+BATCH_SIZE = 8
+ACCUMULATIVE_COUNTS = 2  # gradient accumulation steps
+
+NUM_WORKERS = 4
+
+# COCO dataset
+
+DATA_ROOT = f"{PROJECT_ROOT}/datasets/coco"
 DATASET_TYPE = "CocoDataset"
 ANN_TRAIN = f"{DATA_ROOT}/annotations/instances_train2017.json"
 ANN_VAL = f"{DATA_ROOT}/annotations/instances_val2017.json"
 TRAIN_PREFIX = "train2017/"
 VAL_PREFIX = "val2017/"
 
-# Optim / Schedule
-ACCUMULATIVE_COUNTS = 8 # EFFECTIVE_BATCH_SIZE = BATCH_SIZE * ACCUMULATIVE_COUNTS
+# Optimizer
+
+LR = 1e-4
+WEIGHT_DECAY = 0.05
+
+# Warmup
+
 WARMUP_ITERS = 500
 WARMUP_START_FACTOR = 0.001
 
@@ -41,32 +63,52 @@ WARMUP_START_FACTOR = 0.001
 # Model
 # ============================================================
 
-backbone = dict(
-    type="SwinTransformerModel",
-    img_size=None,
-    patch_size=4,
-    embed_dim=96,
-    depths=[2, 2, 6, 2],
-    num_heads=[3, 6, 12, 24],
-    window_size=7,
-    mlp_ratio=4.0,
-    dropout=0.0,
-    attention_dropout=0.0,
-    projection_dropout=0.0,
-    drop_path_rate=0.0,
-    pretrain_img_size=IMG_SIZE,
-    out_indices=(0, 1, 2, 3),
-    use_shifted_window=True,
-    use_relative_bias=True,
-    use_absolute_pos_embed=False,
-    use_hierarchical_merge=False,
-    use_gradient_checkpointing=False,
-    init_cfg=dict(
-        type="Pretrained",
-        checkpoint=CHECKPOINT_PATH,
-    ),
-)
+# Backbone selection: either custom Swin Transformer or standard ResNet
+if MODEL_TYPE == "swin":
+    backbone = dict(
+        type="SwinTransformerModel",     # custom Swin backbone registered in MMDet
+        img_size=None,                   # allow dynamic image sizes (important for detection)
+        patch_size=4,
+        embed_dim=SWIN_PRESETS[SWIN_VARIANT]["embed_dim"],
+        depths=SWIN_PRESETS[SWIN_VARIANT]["depths"],
+        num_heads=SWIN_PRESETS[SWIN_VARIANT]["num_heads"],
+        window_size=7,
+        mlp_ratio=4.0,
+        dropout=0.0,
+        attention_dropout=0.0,
+        projection_dropout=0.0,
+        drop_path_rate=0.0,
+        pretrain_img_size=IMG_SIZE,
+        out_indices=(0, 1, 2, 3),         # output features from all Swin stages
+        use_shifted_window=True,
+        use_relative_bias=True,
+        use_absolute_pos_embed=False,
+        use_hierarchical_merge=False,
+        use_gradient_checkpointing=False,
+        init_cfg=dict(
+            type="Pretrained",
+            checkpoint=CHECKPOINT,
+        ),
+    )
+elif MODEL_TYPE == "resnet":
+    backbone = dict(
+        type="ResNet",
+        depth=50,
+        num_stages=4,
+        out_indices=(0, 1, 2, 3),         # C2–C5 feature maps
+        frozen_stages=1,                 # freeze stem + first stage
+        norm_cfg=dict(type="BN", requires_grad=True),
+        norm_eval=True,
+        style="pytorch",
+        init_cfg=dict(
+            type="Pretrained",
+            checkpoint=CHECKPOINT,
+        ),
+    )
+else:
+    raise ValueError(f"Unknown MODEL_TYPE: {MODEL_TYPE}")
 
+# Input normalization and padding logic
 data_preprocessor = dict(
     type="DetDataPreprocessor",
     bgr_to_rgb=True,
@@ -75,14 +117,20 @@ data_preprocessor = dict(
     pad_size_divisor=32,
 )
 
-EMBED_DIM = backbone["embed_dim"]
+# Feature Pyramid Network (FPN)
+if MODEL_TYPE == "swin":
+    BASE_CHANNELS = backbone["embedding_dim"]
+elif MODEL_TYPE == "resnet":
+    BASE_CHANNELS = 256
 neck = dict(
     type="FPN",
-    in_channels=[EMBED_DIM, EMBED_DIM * 2, EMBED_DIM * 4, EMBED_DIM * 8],
+    in_channels=[BASE_CHANNELS, BASE_CHANNELS * 2, BASE_CHANNELS * 4, BASE_CHANNELS * 8],
     out_channels=256,
     num_outs=5,
 )
 
+# Region Proposal Network (RPN)
+# Generates candidate object boxes from FPN features
 rpn_head = dict(
     type="RPNHead",
     in_channels=256,
@@ -102,16 +150,22 @@ rpn_head = dict(
     loss_bbox=dict(type="SmoothL1Loss", beta=1.0 / 9.0, loss_weight=1.0),
 )
 
+# Cascade RoI Head
+# Three-stage refinement of bounding boxes + mask prediction
 roi_head = dict(
     type="CascadeRoIHead",
     num_stages=3,
-    stage_loss_weights=[1, 0.5, 0.25],
+    stage_loss_weights=[1, 0.5, 0.25],   # later stages contribute less to loss
+
+    # Shared box feature extraction
     bbox_roi_extractor=dict(
         type="SingleRoIExtractor",
         roi_layer=dict(type="RoIAlign", output_size=7, sampling_ratio=0),
         out_channels=256,
         featmap_strides=[4, 8, 16, 32],
     ),
+
+    # Progressive bbox heads with stricter IoU targets
     bbox_head=[
         dict(
             type="ConvFCBBoxHead",
@@ -171,6 +225,8 @@ roi_head = dict(
             loss_bbox=dict(type="GIoULoss", loss_weight=10.0),
         ),
     ],
+
+    # Mask head for instance segmentation
     mask_roi_extractor=dict(
         type="SingleRoIExtractor",
         roi_layer=dict(type="RoIAlign", output_size=14, sampling_ratio=0),
@@ -187,6 +243,7 @@ roi_head = dict(
     ),
 )
 
+# Training-time assigners, samplers, and proposal settings
 det_train_cfg = dict(
     rpn=dict(
         assigner=dict(
@@ -280,6 +337,7 @@ det_train_cfg = dict(
     ],
 )
 
+# Inference-time thresholds and NMS settings
 det_test_cfg = dict(
     rpn=dict(
         nms_across_levels=False,
@@ -297,6 +355,7 @@ det_test_cfg = dict(
     ),
 )
 
+# Full detector definition
 model = dict(
     type="CascadeRCNN",
     data_preprocessor=data_preprocessor,
@@ -313,6 +372,10 @@ model = dict(
 # Data / Pipelines
 # ============================================================
 
+# Training pipeline:
+# - load image + annotations (bbox + masks)
+# - random horizontal flip
+# - AutoAugment with multi-scale resizing (and an occasional crop branch)
 train_pipeline = [
     dict(type="LoadImageFromFile"),
     dict(type="LoadAnnotations", with_bbox=True, with_mask=True),
@@ -320,6 +383,7 @@ train_pipeline = [
     dict(
         type="AutoAugment",
         policies=[
+            # standard multi-scale training (short side in [480..800], long side <= 1333)
             [
                 dict(
                     type="RandomChoiceResize",
@@ -331,6 +395,7 @@ train_pipeline = [
                     keep_ratio=True,
                 )
             ],
+            # resize -> random crop (can include negative crops) -> resize again
             [
                 dict(
                     type="RandomChoiceResize",
@@ -358,11 +423,15 @@ train_pipeline = [
     dict(type="PackDetInputs"),
 ]
 
+# Test/validation pipeline:
+# Deterministic resize to the common COCO setting (short side 800, long side <= 1333)
 test_pipeline = [
     dict(type="LoadImageFromFile"),
     dict(type="Resize", scale=(1333, 800), keep_ratio=True),
     dict(type="PackDetInputs"),
 ]
+
+# Dataloaders
 
 train_dataloader = dict(
     batch_size=BATCH_SIZE,
@@ -372,8 +441,7 @@ train_dataloader = dict(
     dataset=dict(
         type=DATASET_TYPE,
         data_root=DATA_ROOT,
-        indices=SAMPLE_SIZE,
-        ann_file="annotations/instances_train2017.json",  # stays relative to data_root
+        ann_file="annotations/instances_train2017.json",
         data_prefix=dict(img=TRAIN_PREFIX),
         pipeline=train_pipeline,
     ),
@@ -387,26 +455,31 @@ val_dataloader = dict(
     dataset=dict(
         type=DATASET_TYPE,
         data_root=DATA_ROOT,
-        ann_file="annotations/instances_val2017.json",  # stays relative to data_root
+        ann_file="annotations/instances_val2017.json",
         data_prefix=dict(img=VAL_PREFIX),
         pipeline=test_pipeline,
     ),
 )
 
+# Reuse val settings for test by default
 test_dataloader = val_dataloader
 
+# Evaluation:
+# COCO AP for bounding boxes and instance masks
 val_evaluator = dict(
     type="CocoMetric",
     ann_file=ANN_VAL,
     metric=["bbox", "segm"],
 )
-test_evaluator = val_evaluator
 
+test_evaluator = val_evaluator
 
 # ============================================================
 # Optimizer / Schedulers / Loops
 # ============================================================
 
+# Optimizer wrapper:
+# - AMP for mixed-precision training
 optim_wrapper = dict(
     type="AmpOptimWrapper",
     optimizer=dict(
@@ -417,13 +490,15 @@ optim_wrapper = dict(
     ),
     paramwise_cfg=dict(
         custom_keys=dict(
-            absolute_pos_embed=dict(decay_mult=0.0),
-            relative_position_bias_table=dict(decay_mult=0.0),
-            norm=dict(decay_mult=0.0),
+            absolute_pos_embed=dict(decay_mult=0.0),        # do not decay absolute positional embeddings
+            relative_position_bias_table=dict(decay_mult=0.0),  # do not decay relative position bias
+            norm=dict(decay_mult=0.0),                      # do not decay LayerNorm / BatchNorm
         )
     ),
-    accumulative_counts=ACCUMULATIVE_COUNTS,
+    accumulative_counts=ACCUMULATIVE_COUNTS,               # gradient accumulation for larger effective batch size
 )
+
+# Learning rate schedulers
 
 param_scheduler = [
     dict(
@@ -436,11 +511,12 @@ param_scheduler = [
     dict(
         type="MultiStepLR",
         by_epoch=True,
-        milestones=[8, 11],
+        milestones=MILESTONES,
         gamma=0.1,
     ),
 ]
 
+# Training / validation / test loops
 
 train_cfg = dict(type="EpochBasedTrainLoop", max_epochs=MAX_EPOCHS)
 val_cfg = dict(type="ValLoop")
@@ -451,31 +527,48 @@ test_cfg = dict(type="TestLoop")
 # Env / Logging / Vis
 # ============================================================
 
+# Default registry scope
 default_scope = "mmdet"
+
+# Global logging level
 log_level = "INFO"
 log_processor = dict(by_epoch=True, type="LogProcessor", window_size=50)
 
+# Custom hooks:
+# - NumClassCheckHook ensures dataset class count matches model heads
 custom_hooks = [dict(type="NumClassCheckHook")]
+
+# Default runtime hooks
 
 default_hooks = dict(
     sampler_seed=dict(type="DistSamplerSeedHook"),
-    checkpoint=dict(type="CheckpointHook", interval=1),
-    logger=dict(type="LoggerHook", interval=50),
+    checkpoint=dict(type="CheckpointHook", interval=1),  # save every epoch
+    logger=dict(type="LoggerHook", interval=50),          # log every N iterations
 )
 
+# Visualization backends (local file-based visualization)
 vis_backends = [dict(type="LocalVisBackend")]
+
+# Visualizer used for debugging predictions and ground truth
 visualizer = dict(
     name="visualizer",
     type="DetLocalVisualizer",
     vis_backends=vis_backends,
 )
 
+# Environment configuration
+
 env_cfg = dict(
     cudnn_benchmark=True,
     mp_cfg=dict(mp_start_method="fork", opencv_num_threads=0),
 )
 
-randomness = dict(seed=SEED, deterministic=False)
+# Global randomness control
 
+randomness = SEED_CONFIG
+
+# Checkpoint handling:
+# - resume: resume training inside run folder (with optimizer step)
+# - load_from: start from a pretrained or previous checkpoint
+resume = None
 load_from = None
-resume_from = None
