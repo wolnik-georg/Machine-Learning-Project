@@ -15,30 +15,30 @@ class ConvDownsample(nn.Module):
     Operation: Reshape → 3×3 Conv (stride 1) → Reshape
     Result: Same spatial resolution, different feature transformation
 
-    ┌────────────────────── SINGLE-RESOLUTION ABLATION ──────────────────────┐
-    │                                                                       │
+    ┌────────────────────── SINGLE-RESOLUTION ABLATION ────────────────────┐
+    │                                                                      │
     │  Input: [B, H×W, C]  (e.g., [B, 3136, 96] for 56×56)                 │
-    │      │                                                                │
-    │      ▼ Reshape to spatial                                             │
+    │      │                                                               │
+    │      ▼ Reshape to spatial                                            │
     │  [B, H, W, C]  (e.g., [B, 56, 56, 96])                               │
-    │      │                                                                │
-    │      ▼ Transpose for conv                                             │
+    │      │                                                               │
+    │      ▼ Transpose for conv                                            │
     │  [B, C, H, W]  (e.g., [B, 96, 56, 56])                               │
-    │      │                                                                │
-    │      ▼                                                                │
-    │  ┌─────────────────────────────────────────┐                          │
-    │  │  3×3 Conv, stride 1, padding 1         │                          │
-    │  │  Maintains spatial resolution           │                          │
-    │  │  Changes feature processing             │                          │
-    │  └─────────────────────────────────────────┘                          │
-    │      │                                                                │
-    │      ▼ Transpose back                                                 │
-    │  [B, H, W, C]  (same spatial dims)                                    │
-    │      │                                                                │
-    │      ▼ Flatten                                                        │
-    │  [B, H×W, C]  (same output shape as input)                            │
-    │                                                                       │
-    └───────────────────────────────────────────────────────────────────────┘
+    │      │                                                               │
+    │      ▼                                                               │
+    │  ┌─────────────────────────────────────────┐                         │
+    │  │  3×3 Conv, stride 1, padding 1          │                         │
+    │  │  Maintains spatial resolution           │                         │
+    │  │  Changes feature processing             │                         │
+    │  └─────────────────────────────────────────┘                         │
+    │      │                                                               │
+    │      ▼ Transpose back                                                │
+    │  [B, H, W, C]  (same spatial dims)                                   │
+    │      │                                                               │
+    │      ▼ Flatten                                                       │
+    │  [B, H×W, C]  (same output shape as input)                           │
+    │                                                                      │
+    └──────────────────────────────────────────────────────────────────────┘
 
     Why This Ablation Matters:
     1. **No Hierarchical Downsampling**: All stages work at 56×56 resolution
@@ -50,7 +50,7 @@ class ConvDownsample(nn.Module):
     This shows hierarchical design provides significant performance benefits.
     """
 
-    def __init__(self, input_resolution: tuple, dim: int):
+    def __init__(self, dim: int):
         """
         Initialize Convolutional Downsampling layer.
 
@@ -66,7 +66,6 @@ class ConvDownsample(nn.Module):
             - No dimension change (unlike PatchMerging which doubles channels)
         """
         super().__init__()
-        self.input_resolution = input_resolution  # (H, W) in patches
         self.dim = dim
 
         # 3×3 convolution with stride 1 to maintain resolution
@@ -84,7 +83,7 @@ class ConvDownsample(nn.Module):
         # LayerNorm for stabilization (similar to PatchMerging)
         self.norm = nn.LayerNorm(dim)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, H, W) -> torch.Tensor:
         """
         Apply convolutional downsampling while maintaining resolution.
 
@@ -100,7 +99,6 @@ class ConvDownsample(nn.Module):
         3. Normalize and reshape back to sequence format
         """
         B, HW, C = x.shape
-        H, W = self.input_resolution
 
         # Reshape to spatial layout for convolution
         # [B, H*W, C] → [B, H, W, C]

@@ -16,7 +16,7 @@ class SwinTransformerBlock(nn.Module):
     - Standard Window Multi-head Self Attention (W-MSA) mode
     - Shifted Window Multi-head Self Attention (SW-MSA) mode
 
-    ┌────────────────────── SWIN BLOCK ARCHITECTURE ──────────────────────┐
+    ┌────────────────────── SWIN BLOCK ARCHITECTURE ───────────────────────┐
     │                                                                      │
     │  Input: [B, H×W, C]                                                  │
     │      │                                                               │
@@ -34,7 +34,7 @@ class SwinTransformerBlock(nn.Module):
     │  DropPath (Stochastic Depth)   │                                     │
     │      │                         │                                     │
     │      ▼                         │                                     │
-    │  ◄──(+)◄────────────────────────┘                                     │
+    │  ◄──(+)◄────────────────────────┘                                    │
     │      │                                                               │
     │      ├─────────────────────────┐                                     │
     │      │                         │  (Residual Connection 2)            │
@@ -48,7 +48,7 @@ class SwinTransformerBlock(nn.Module):
     │  DropPath (Stochastic Depth)   │                                     │
     │      │                         │                                     │
     │      ▼                         │                                     │
-    │  ◄──(+)◄────────────────────────┘                                     │
+    │  ◄──(+)◄────────────────────────┘                                    │
     │      │                                                               │
     │      ▼                                                               │
     │  Output: [B, H×W, C]                                                 │
@@ -70,7 +70,6 @@ class SwinTransformerBlock(nn.Module):
     def __init__(
         self,
         dim: int,
-        input_resolution: tuple,
         num_heads: int,
         window_size: int = 7,
         shift_size: int = 0,
@@ -105,7 +104,6 @@ class SwinTransformerBlock(nn.Module):
         super().__init__()
 
         self.dim = dim
-        self.input_resolution = input_resolution
         self.num_heads = num_heads
         self.window_size = window_size
         self.shift_size = shift_size
@@ -146,7 +144,7 @@ class SwinTransformerBlock(nn.Module):
 
         self.drop_path2 = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, H, W) -> torch.Tensor:
         """
         Forward pass through Swin Transformer Block.
 
@@ -171,7 +169,6 @@ class SwinTransformerBlock(nn.Module):
         12. Add residual with DropPath
         13. Apply MLP block with residual connection
         """
-        H, W = self.input_resolution
         B, L, C = x.shape
 
         assert L == H * W, f"Input feature has wrong size: {L} vs {H*W}"

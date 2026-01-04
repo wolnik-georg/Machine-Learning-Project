@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class PatchEmbed(nn.Module):
@@ -60,10 +61,11 @@ class PatchEmbed(nn.Module):
 
     def __init__(
         self,
-        img_size: int = 224,
+        img_size: int | None = 224,
         patch_size: int = 4,
         in_channels: int = 3,
         embedding_dim: int = 96,
+        pretrain_img_size: int | None = None,
         use_absolute_pos_embed: bool = False,  # Ablation flag: True for absolute pos embed (ViT-style)
     ):
         """
@@ -73,8 +75,6 @@ class PatchEmbed(nn.Module):
 
         self.img_size = img_size
         self.patch_size = patch_size
-        self.patches_resolution = [img_size // patch_size, img_size // patch_size]
-        self.num_patches = self.patches_resolution[0] * self.patches_resolution[1]
 
         self.in_channels = in_channels
         self.embedding_dim = embedding_dim
@@ -93,6 +93,12 @@ class PatchEmbed(nn.Module):
 
         # Absolute position embedding (ViT-style) - ablation flag
         if self.use_absolute_pos_embed:
+            if img_size is None:
+                assert pretrain_img_size is not None, (
+                    "Either image size or pretrain image size must be provided when using absolute position embedding."
+                )
+                img_size = pretrain_img_size
+            num_patches = (img_size // patch_size) * (img_size // patch_size)
             self.absolute_pos_embed = nn.Parameter(
                 torch.zeros(1, self.num_patches, embedding_dim)
             )
@@ -119,13 +125,27 @@ class PatchEmbed(nn.Module):
         """
         Convert images to patch embeddings.
         """
-        B, C, H, W = x.shape
+        if self.img_size is None:
+            # infer spatial size from input if no fixed resolution was specified
+            _, _, H, W = x.shape
+
+            # compute how much height/width overflow relative to the patch size
+            pH = H % self.patch_size
+            pW = W % self.patch_size
+
+            # pad input if height/width are not divisible by patch size 
+            # (ensures patch partitioning without remainder)
+            if pH != 0 or pW != 0:
+                x = F.pad(x, (0, self.patch_size - pW, 0, self.patch_size - pH))
 
         # Step 1: Project patches using efficient convolution
         # Input:  [B, 3, 224, 224]
         # Output: [B, 96, 56, 56]
         # Each spatial position (i,j) contains features for patch at (4*i, 4*j)
         x = self.proj(x)
+
+        # store shape values
+        _, _, pH, pW = x.shape
 
         # Step 2: Reshape to sequence format for attention processing
         # Flatten spatial dimensions: [B, 96, 56, 56] → [B, 96, 3136]
@@ -141,6 +161,9 @@ class PatchEmbed(nn.Module):
 
         # Step 4: Add absolute position embeddings (ViT-style) if enabled
         if self.use_absolute_pos_embed:
+            # if input size varies, resize the positional embedding to match current token grid
+            if self.img_size is None:
+                self.absolute_pos_embed = F.interpolate(self.absolute_pos_embed, size=(pH, pW), mode='bicubic')
             x = x + self.absolute_pos_embed
 
-        return x
+        return x, (pH, pW)
