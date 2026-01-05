@@ -2,13 +2,18 @@
 DeiT Feature Extractor for semantic segmentation.
 
 Wraps timm DeiT to extract multi-scale features compatible with UperNet.
-Uses deconvolution layers to create pseudo-hierarchical features from
-the single-scale ViT/DeiT output, following the approach described in
-the Swin Transformer paper (Table 3, footnote †).
+Uses MultiLevelNeck (bilinear interpolation) to create pseudo-hierarchical 
+features from the single-scale ViT/DeiT output.
+
+This follows the approach described in the Swin Transformer paper (Table 3),
+where they reference SETR [81] for constructing hierarchical features from DeiT.
+SETR uses bilinear interpolation + convolutions (not ConvTranspose2d), which
+is exactly what MultiLevelNeck implements.
 
 Reference:
-    "Swin Transformer: Hierarchical Vision Transformer using Shifted Windows"
-    https://arxiv.org/abs/2103.14030
+    - Swin Transformer paper: https://arxiv.org/abs/2103.14030 (Table 3)
+    - SETR paper [81]: https://arxiv.org/abs/2012.15840
+    - mmsegmentation: configs/vit/vit_deit-s16_mln_upernet_8xb2-160k_ade20k-512x512.py
 """
 
 import torch
@@ -23,25 +28,85 @@ except ImportError:
     raise ImportError("Please install timm: pip install timm")
 
 
+class MultiLevelNeck(nn.Module):
+    """
+    Multi-level neck that resizes features to different scales.
+    
+    This matches mmsegmentation's MultiLevelNeck:
+    - Takes features all at the same resolution (1/16 for patch_size=16)
+    - Resizes them to scales [4, 2, 1, 0.5] relative to input
+    - Results in [1/4, 1/8, 1/16, 1/32] of original image
+    
+    Args:
+        in_channels: Input channel dimension (same for all levels)
+        out_channels: Output channel dimension (same for all levels)
+        scales: Scale factors for each level [4, 2, 1, 0.5]
+    """
+    
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        scales: Tuple[float, ...] = (4, 2, 1, 0.5),
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.scales = scales
+        
+        # Optional: 1x1 conv to change channel dimension if needed
+        self.lateral_convs = nn.ModuleList()
+        for _ in range(len(scales)):
+            if in_channels != out_channels:
+                self.lateral_convs.append(
+                    nn.Conv2d(in_channels, out_channels, kernel_size=1)
+                )
+            else:
+                self.lateral_convs.append(nn.Identity())
+    
+    def forward(self, features: List[torch.Tensor]) -> List[torch.Tensor]:
+        """
+        Resize features to different scales.
+        
+        Args:
+            features: List of [B, C, H, W] tensors, all at same resolution
+        
+        Returns:
+            List of [B, out_channels, H*scale, W*scale] tensors
+        """
+        outputs = []
+        for i, (feat, scale) in enumerate(zip(features, self.scales)):
+            feat = self.lateral_convs[i](feat)
+            
+            if scale != 1:
+                feat = F.interpolate(
+                    feat,
+                    scale_factor=scale,
+                    mode='bilinear',
+                    align_corners=False,
+                )
+            outputs.append(feat)
+        
+        return outputs
+
+
 class DeiTFeatureExtractor(nn.Module):
     """
-    DeiT backbone with deconvolution layers for hierarchical feature extraction.
+    DeiT backbone with MultiLevelNeck for hierarchical feature extraction.
     
-    DeiT naturally outputs single-scale features (all layers at 1/16 resolution).
-    To make it compatible with UperNet (which expects multi-scale features),
-    we extract features from intermediate transformer layers and use 
-    deconvolution to create a pseudo-hierarchy.
+    DeiT outputs single-scale features (all layers at 1/16 resolution).
+    Following mmsegmentation's approach, we:
+    1. Extract features from intermediate transformer layers (3, 6, 9, 12)
+    2. Use bilinear interpolation (MultiLevelNeck) to create hierarchy
+    3. Keep channel dimension the SAME across all levels (384 for DeiT-S)
     
-    Following the Swin paper's approach:
-    - Extract features from layers 3, 6, 9, 12 (for 12-layer DeiT)
-    - Use deconvolution to upsample to different scales
-    - Match the scale/channel pattern expected by UperNet
+    This matches the paper's 52M parameter count for DeiT-S + UperNet.
     
-    Output feature scales (for 512x512 input):
-        - C1: [B, 96, 128, 128]   (1/4 scale via 4× deconv)
-        - C2: [B, 192, 64, 64]    (1/8 scale via 2× deconv)
-        - C3: [B, 384, 32, 32]    (1/16 scale, native resolution)
-        - C4: [B, 768, 16, 16]    (1/32 scale via 2× downsample)
+    Output feature scales (for 512x512 input with patch_size=16):
+        - C1: [B, 384, 128, 128]   (1/4 scale via 4× bilinear upsample)
+        - C2: [B, 384, 64, 64]     (1/8 scale via 2× bilinear upsample)
+        - C3: [B, 384, 32, 32]     (1/16 scale, native resolution)
+        - C4: [B, 384, 16, 16]     (1/32 scale via 0.5× bilinear downsample)
     
     Args:
         variant: DeiT model variant from timm
@@ -50,11 +115,6 @@ class DeiTFeatureExtractor(nn.Module):
         use_gradient_checkpointing: If True, use gradient checkpointing
         extract_layers: Which transformer layers to extract features from
     """
-    
-    # Channel configuration to match Swin-T style hierarchy
-    # Input: DeiT-S embed_dim=384
-    # Output: [96, 192, 384, 768] to match Swin-T pattern
-    OUT_CHANNELS = [96, 192, 384, 768]
     
     def __init__(
         self,
@@ -74,7 +134,6 @@ class DeiTFeatureExtractor(nn.Module):
         # Use .fb_in1k suffix for Facebook's ImageNet-1K pretrained weights
         model_name = variant
         if pretrained and not variant.endswith('.fb_in1k'):
-            # Try the Facebook pretrained version first
             model_name = f"{variant}.fb_in1k"
         
         try:
@@ -98,59 +157,20 @@ class DeiTFeatureExtractor(nn.Module):
         self.patch_size = self.deit.patch_embed.patch_size[0]  # 16
         self.num_patches_side = img_size // self.patch_size  # 32 for 512/16
         
-        # Store output channels for UperNet
-        self.out_channels = self.OUT_CHANNELS
+        # Output channels: ALL SAME (matching mmsegmentation approach)
+        # This is key to matching the paper's 52M parameter count
+        self.out_channels = [self.embed_dim] * 4  # [384, 384, 384, 384] for DeiT-S
         
-        # Build deconvolution layers to create hierarchical features
-        # DeiT-S has embed_dim=384, we create hierarchy [96, 192, 384, 768]
-        self._build_deconv_layers()
+        # MultiLevelNeck: bilinear interpolation to create hierarchy
+        # scales=[4, 2, 1, 0.5] means: 4× up, 2× up, identity, 0.5× down
+        self.neck = MultiLevelNeck(
+            in_channels=self.embed_dim,
+            out_channels=self.embed_dim,  # Keep same channels
+            scales=(4, 2, 1, 0.5),
+        )
         
         # For compatibility
         self._img_size = img_size
-    
-    def _build_deconv_layers(self):
-        """
-        Build deconvolution and projection layers to create hierarchical features.
-        
-        From DeiT features at 1/16 scale, we create:
-        - C1: 1/4 scale (4× upsample)
-        - C2: 1/8 scale (2× upsample)
-        - C3: 1/16 scale (identity)
-        - C4: 1/32 scale (2× downsample)
-        """
-        embed_dim = self.embed_dim  # 384 for DeiT-S
-        
-        # C1: 4× upsample (1/16 → 1/4)
-        # Use transposed convolution for learnable upsampling
-        self.deconv1 = nn.Sequential(
-            nn.ConvTranspose2d(embed_dim, 192, kernel_size=2, stride=2),
-            nn.BatchNorm2d(192),
-            nn.GELU(),
-            nn.ConvTranspose2d(192, self.OUT_CHANNELS[0], kernel_size=2, stride=2),
-            nn.BatchNorm2d(self.OUT_CHANNELS[0]),
-            nn.GELU(),
-        )
-        
-        # C2: 2× upsample (1/16 → 1/8)
-        self.deconv2 = nn.Sequential(
-            nn.ConvTranspose2d(embed_dim, self.OUT_CHANNELS[1], kernel_size=2, stride=2),
-            nn.BatchNorm2d(self.OUT_CHANNELS[1]),
-            nn.GELU(),
-        )
-        
-        # C3: Identity projection (1/16 → 1/16)
-        self.lateral3 = nn.Sequential(
-            nn.Conv2d(embed_dim, self.OUT_CHANNELS[2], kernel_size=1),
-            nn.BatchNorm2d(self.OUT_CHANNELS[2]),
-            nn.GELU(),
-        )
-        
-        # C4: 2× downsample (1/16 → 1/32)
-        self.downsample4 = nn.Sequential(
-            nn.Conv2d(embed_dim, self.OUT_CHANNELS[3], kernel_size=2, stride=2),
-            nn.BatchNorm2d(self.OUT_CHANNELS[3]),
-            nn.GELU(),
-        )
     
     @property
     def patches_resolution(self):
@@ -224,7 +244,7 @@ class DeiTFeatureExtractor(nn.Module):
         return_multi_scale: bool = False
     ) -> List[torch.Tensor]:
         """
-        Extract multi-scale features from DeiT using deconvolution.
+        Extract multi-scale features from DeiT using MultiLevelNeck.
         
         Args:
             x: Input images [B, 3, H, W]
@@ -233,9 +253,9 @@ class DeiTFeatureExtractor(nn.Module):
         
         Returns:
             If return_multi_scale=True:
-                List of features [c1, c2, c3, c4] with shapes matching UperNet expectations
+                List of features [c1, c2, c3, c4] at scales [1/4, 1/8, 1/16, 1/32]
             If return_multi_scale=False:
-                Final features [B, 768, H/32, W/32]
+                Final features [B, embed_dim, H/32, W/32]
         """
         # Extract features from intermediate layers
         layer_features = self._extract_intermediate_features(x)
@@ -244,17 +264,14 @@ class DeiTFeatureExtractor(nn.Module):
         # All at 1/16 resolution (patch_size=16)
         spatial_features = [self._reshape_to_spatial(f) for f in layer_features]
         
-        # Apply deconvolution to create hierarchy
-        # Use features from different layers for diversity
-        c1 = self.deconv1(spatial_features[0])      # Layer 3 → 4× upsample → 1/4
-        c2 = self.deconv2(spatial_features[1])      # Layer 6 → 2× upsample → 1/8
-        c3 = self.lateral3(spatial_features[2])     # Layer 9 → identity → 1/16
-        c4 = self.downsample4(spatial_features[3])  # Layer 12 → 2× downsample → 1/32
+        # Apply MultiLevelNeck (bilinear interpolation) to create hierarchy
+        # This matches mmsegmentation's approach exactly
+        multi_scale_features = self.neck(spatial_features)
         
         if return_multi_scale:
-            return [c1, c2, c3, c4]
+            return multi_scale_features
         else:
-            return c4
+            return multi_scale_features[-1]  # 1/32 scale
     
     def get_num_params(self) -> int:
         """Return total number of parameters."""

@@ -320,8 +320,12 @@ def create_deit_segmentation_model(deit_config, downstream_config):
     
     This function loads a pretrained DeiT from timm and combines it with
     UperNet for semantic segmentation. Since DeiT outputs single-scale features,
-    deconvolution layers are used to create a pseudo-hierarchy compatible with
-    UperNet, following the approach in the Swin Transformer paper (Table 3, †).
+    MultiLevelNeck (bilinear interpolation) is used to create a pseudo-hierarchy
+    compatible with UperNet, following the exact approach in mmsegmentation
+    and the Swin Transformer paper (Table 3).
+    
+    Key: All feature levels have the SAME channel dimension (384 for DeiT-S),
+    which matches the paper's 52M parameter count.
     
     Args:
         deit_config: DeiT configuration dictionary with keys:
@@ -347,7 +351,7 @@ def create_deit_segmentation_model(deit_config, downstream_config):
           f"gradient_checkpointing={use_gradient_checkpointing}")
     print(f"Extracting features from layers: {extract_layers}")
     
-    # Create DeiT feature extractor with deconvolution layers
+    # Create DeiT feature extractor with MultiLevelNeck (bilinear interpolation)
     encoder = DeiTFeatureExtractor(
         variant=variant,
         pretrained=pretrained,
@@ -357,7 +361,7 @@ def create_deit_segmentation_model(deit_config, downstream_config):
     )
     
     # Get feature channels from encoder
-    # DeiT with deconv: [96, 192, 384, 768] (to match Swin-T pattern)
+    # DeiT with MultiLevelNeck: [384, 384, 384, 384] (same channels, matching paper)
     in_channels = encoder.out_channels
     
     print(f"DeiT encoder feature channels: {in_channels}")

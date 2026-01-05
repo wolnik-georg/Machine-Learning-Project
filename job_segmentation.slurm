@@ -13,11 +13,12 @@
 # =============================================================================
 # Training Configuration:
 # - DeiT-S backbone (ImageNet pretrained from timm)
-# - Deconvolution layers for hierarchical feature extraction
+# - MultiLevelNeck with bilinear interpolation for hierarchical features
 # - UperNet decoder head
 # - Fine-tune both encoder and decoder
 # - 160 epochs, lr=6e-5, batch_size=8
 # - 512x512 input resolution
+# - Expected: ~52M total params (matching paper Table 3)
 # =============================================================================
 
 mkdir -p logs

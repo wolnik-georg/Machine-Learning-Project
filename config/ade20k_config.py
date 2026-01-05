@@ -60,7 +60,10 @@ RESNET_CONFIG = {
 
 # =============================================================================
 # DeiT Configuration (for DeiT-S + UperNet experiments)
-# Following Swin paper Table 3 (†deconvolution layers for hierarchy)
+# Following Swin paper Table 3 and mmsegmentation implementation:
+# - MultiLevelNeck with bilinear interpolation (NOT learned deconvolution)
+# - Same channel dimension across all levels (384 for DeiT-S)
+# - Expected: ~52M total params (22M encoder + 30M head)
 # =============================================================================
 DEIT_CONFIG = {
     "type": "deit",

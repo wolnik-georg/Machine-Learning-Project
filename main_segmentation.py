@@ -47,7 +47,7 @@ def setup_device() -> torch.device:
 
 
 # Choose encoder backbone: "swin", "resnet", or "deit"
-# Set this to "deit" to train DeiT-S + UperNet (with deconvolution layers)
+# Set this to "deit" to train DeiT-S + UperNet (with MultiLevelNeck for hierarchical features)
 ENCODER_TYPE = "deit"  # Options: "swin", "resnet", "deit"
 
 
@@ -59,7 +59,7 @@ def main():
             model_name = f"ResNet-101 + UperNet"
             encoder_config = RESNET_CONFIG
         elif ENCODER_TYPE == "deit":
-            model_name = "DeiT-S + UperNet (with deconv)"
+            model_name = "DeiT-S + UperNet"
             encoder_config = DEIT_CONFIG
         else:
             model_name = "Swin-T + UperNet"
