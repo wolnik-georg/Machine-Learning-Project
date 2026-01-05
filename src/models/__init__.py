@@ -11,7 +11,12 @@ from .model_wrapper import (
 )
 from .segmentation_wrapper import SegmentationModelWrapper
 from .resnet_encoder import ResNetFeatureExtractor, ResNetSegmentationWrapper
-from .model_factory import create_segmentation_model, create_resnet_segmentation_model
+from .deit_encoder import DeiTFeatureExtractor, DeiTSegmentationWrapper
+from .model_factory import (
+    create_segmentation_model,
+    create_resnet_segmentation_model,
+    create_deit_segmentation_model,
+)
 
 
 __all__ = [
@@ -23,9 +28,12 @@ __all__ = [
     "SegmentationModelWrapper",
     "ResNetFeatureExtractor",
     "ResNetSegmentationWrapper",
+    "DeiTFeatureExtractor",
+    "DeiTSegmentationWrapper",
     "create_linear_classification_model",
     "create_segmentation_model",
     "create_resnet_segmentation_model",
+    "create_deit_segmentation_model",
     "swin_tiny_patch4_window7_224",
     "swin_small_patch4_window7_224",
     "swin_base_patch4_window7_224",

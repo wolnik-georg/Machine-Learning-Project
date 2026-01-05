@@ -13,7 +13,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from src.models.model_factory import create_segmentation_model, create_resnet_segmentation_model
+from src.models.model_factory import (
+    create_segmentation_model,
+    create_resnet_segmentation_model,
+    create_deit_segmentation_model,
+)
 from src.training import run_segmentation_training_loop
 from src.training.checkpoints import load_checkpoint, save_model_weights
 from src.utils.experiment import ExperimentTracker
@@ -59,6 +63,7 @@ def create_segmentation_model_for_training(
     load_pretrained: bool = True,
     encoder_type: str = "swin",
     resnet_config: Optional[Dict] = None,
+    deit_config: Optional[Dict] = None,
 ) -> nn.Module:
     """
     Create segmentation model and move to device.
@@ -68,11 +73,12 @@ def create_segmentation_model_for_training(
         downstream_config: Downstream task configuration
         device: Device to place model on
         load_pretrained: Whether to load ImageNet pretrained weights
-        encoder_type: "swin" or "resnet"
+        encoder_type: "swin", "resnet", or "deit"
         resnet_config: ResNet configuration (required if encoder_type="resnet")
+        deit_config: DeiT configuration (required if encoder_type="deit")
     
     Returns:
-        SegmentationModelWrapper or ResNetSegmentationWrapper on device
+        SegmentationModelWrapper, ResNetSegmentationWrapper, or DeiTSegmentationWrapper on device
     """
     if encoder_type == "resnet":
         if resnet_config is None:
@@ -83,6 +89,18 @@ def create_segmentation_model_for_training(
         
         model = create_resnet_segmentation_model(
             resnet_config=resnet_config,
+            downstream_config=downstream_config,
+        )
+    elif encoder_type == "deit":
+        if deit_config is None:
+            raise ValueError("deit_config is required when encoder_type='deit'")
+        
+        variant = deit_config.get("variant", "deit_small_patch16_224")
+        logger.info(f"Creating {variant} + UperNet segmentation model...")
+        logger.info("Using deconvolution layers for hierarchical feature extraction")
+        
+        model = create_deit_segmentation_model(
+            deit_config=deit_config,
             downstream_config=downstream_config,
         )
     else:
@@ -118,6 +136,7 @@ def run_segmentation_pipeline(
     resume_checkpoint: Optional[str] = None,
     encoder_type: str = "swin",
     resnet_config: Optional[Dict] = None,
+    deit_config: Optional[Dict] = None,
 ) -> Dict:
     """
     Run the full segmentation training pipeline.
@@ -131,8 +150,9 @@ def run_segmentation_pipeline(
         device: Device to train on
         run_dir: Directory to save results
         resume_checkpoint: Path to checkpoint to resume from (optional)
-        encoder_type: "swin" or "resnet" backbone selection
+        encoder_type: "swin", "resnet", or "deit" backbone selection
         resnet_config: ResNet configuration (required if encoder_type="resnet")
+        deit_config: DeiT configuration (required if encoder_type="deit")
     
     Returns:
         Final metrics dictionary
@@ -142,6 +162,12 @@ def run_segmentation_pipeline(
         resnet_variant = resnet_config.get("variant", "resnet101") if resnet_config else "resnet101"
         variant = f"{resnet_variant}_upernet"
         model_display_name = f"{resnet_variant.upper()} + UperNet"
+    elif encoder_type == "deit":
+        deit_variant = deit_config.get("variant", "deit_small_patch16_224") if deit_config else "deit_small"
+        # Extract short name: "deit_small_patch16_224" -> "deit_small"
+        variant_short = "_".join(deit_variant.split("_")[:2]) if "_" in deit_variant else deit_variant
+        variant = f"{variant_short}_upernet"
+        model_display_name = f"{variant_short.upper()} + UperNet (with deconv)"
     else:
         variant = "swin_upernet"
         model_display_name = "Swin-T + UperNet"
@@ -158,6 +184,7 @@ def run_segmentation_pipeline(
         load_pretrained=downstream_config.get("use_pretrained", True),
         encoder_type=encoder_type,
         resnet_config=resnet_config,
+        deit_config=deit_config,
     )
     
     # Setup mixed precision
