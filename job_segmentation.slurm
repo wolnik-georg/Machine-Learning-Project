@@ -3,16 +3,16 @@
 #SBATCH --gpus=1
 #SBATCH --mem=64G
 #SBATCH --time=168:00:00
-#SBATCH --job-name=swin_ade20k_seg
+#SBATCH --job-name=resnet101_ade20k_seg
 #SBATCH --output=logs/%j_%x.out
 #SBATCH --error=logs/%j_%x.err
 #SBATCH --chdir=/home/pml20/Machine-Learning-Project
 
 # =============================================================================
-# ADE20K Semantic Segmentation Training - Swin-T + UperNet
+# ADE20K Semantic Segmentation Training - ResNet-101 + UperNet
 # =============================================================================
 # Training Configuration:
-# - Swin-T backbone (ImageNet pretrained)
+# - ResNet-101 backbone (ImageNet pretrained from torchvision)
 # - UperNet decoder head
 # - Fine-tune both encoder and decoder
 # - 160 epochs, lr=6e-5, batch_size=16
@@ -38,7 +38,7 @@ echo ""
 
 # Set PyTorch CUDA memory allocation config for better memory management
 # Segmentation with 512x512 requires more memory than classification
-export PYTORCH_ALLOC_CONF=max_split_size_mb:512
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:256
 
 echo "PYTORCH_ALLOC_CONF: $PYTORCH_ALLOC_CONF"
 echo ""

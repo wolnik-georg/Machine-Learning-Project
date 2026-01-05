@@ -16,7 +16,7 @@ DATA_CONFIG = {
     "dataset": "ADE20K",
     "use_batch_for_val": False,
     "val_batch": 5,
-    "batch_size": 16,  # Smaller batch size for segmentation (higher memory)
+    "batch_size": 8,  # Use 8 for RTX 4070 (12GB); batch_size=16 requires A100 (40GB+)
     "num_workers": 8,
     "root": "./datasets",  # Will check shared storage first, then download if needed
     "img_size": 512,  # ADE20K resolution (512 is standard despite window_size mismatch)
@@ -40,10 +40,23 @@ SWIN_CONFIG = {
     "attention_dropout": 0.0,
     "projection_dropout": 0.0,
     "drop_path_rate": 0.2,  # Higher for segmentation following paper
+    "use_gradient_checkpointing": False,  # Enable for memory efficiency on smaller GPUs
 }
 
 # Apply preset values for None fields
 apply_swin_preset(SWIN_CONFIG, SWIN_PRESETS)
+
+# =============================================================================
+# ResNet Configuration (for ResNet-101/50 + UperNet experiments)
+# =============================================================================
+RESNET_CONFIG = {
+    "type": "resnet",
+    "variant": "resnet101",  # Choose: "resnet50" or "resnet101"
+    "pretrained": True,  # Load ImageNet pretrained weights from torchvision
+    "img_size": 512,  # ADE20K resolution
+    "layers": [3, 4, 23, 3],  # ResNet-101 layers (use [3, 4, 6, 3] for ResNet-50)
+    "use_gradient_checkpointing": True,  # Enable for memory efficiency on 12GB GPUs
+}
 
 # =============================================================================
 # Downstream Task Configuration
