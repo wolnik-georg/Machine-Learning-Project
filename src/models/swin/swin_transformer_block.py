@@ -86,7 +86,6 @@ class SwinTransformerBlock(nn.Module):
 
         Args:
             dim: Feature dimension (C)
-            input_resolution: (H, W) spatial resolution
             num_heads: Number of attention heads
             window_size: Window size for attention (default: 7×7)
             shift_size: Shift size for SW-MSA (0 for W-MSA, window_size//2 for SW-MSA)
@@ -108,13 +107,6 @@ class SwinTransformerBlock(nn.Module):
         self.window_size = window_size
         self.shift_size = shift_size
         self.mlp_ratio = mlp_ratio
-
-        # MMSegmentation approach: Use padding instead of falling back to global attention
-        # If window size is larger than input resolution, use input resolution as window size
-        # (this only happens at very small resolutions like 7x7 in stage 4)
-        if min(self.input_resolution) <= self.window_size:
-            self.window_size = min(self.input_resolution)
-            self.shift_size = 0
 
         assert (
             0 <= self.shift_size < self.window_size

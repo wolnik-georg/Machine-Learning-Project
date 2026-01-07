@@ -175,12 +175,12 @@ class UperNetHead(nn.Module):
         self.dropout = nn.Dropout2d(dropout) if dropout > 0 else nn.Identity()
         self.classifier = nn.Conv2d(channels, num_classes, kernel_size=1)
     
-    def forward(self, features: List[torch.Tensor]) -> torch.Tensor:
+    def forward(self, features: tuple[torch.Tensor]) -> torch.Tensor:
         """
         Forward pass through UperNet head.
         
         Args:
-            features: List of multi-scale features from encoder
+            features: Tuple of multi-scale features from encoder
                       [C1, C2, C3, C4] where Ci has shape [B, in_channels[i], Hi, Wi]
                       For Swin-T with 512x512 input:
                         C1: [B, 96, 128, 128]

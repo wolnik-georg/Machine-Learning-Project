@@ -40,6 +40,7 @@ SWIN_CONFIG = {
     "attention_dropout": 0.0,
     "projection_dropout": 0.0,
     "drop_path_rate": 0.2,  # Higher for segmentation following paper
+    "out_indices": (0, 1, 2, 3),  # Return output from every stage
     "use_gradient_checkpointing": False,  # Enable for memory efficiency on smaller GPUs
 }
 

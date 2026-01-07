@@ -191,6 +191,7 @@ def create_segmentation_model(swin_config, downstream_config, load_pretrained=Tr
         window_size=swin_config["window_size"],
         mlp_ratio=swin_config["mlp_ratio"],
         dropout_rate=swin_config["dropout"],
+        out_indices=swin_config["out_indices"],
         attention_dropout_rate=swin_config["attention_dropout"],
         projection_dropout_rate=swin_config["projection_dropout"],
         drop_path_rate=swin_config["drop_path_rate"],
