@@ -1,4 +1,14 @@
-from .base_config import SWIN_PRESETS, SEED_CONFIG
+SWIN_PRESETS = {
+    "tiny": {"embed_dim": 96, "depths": [2, 2, 6, 2], "num_heads": [3, 6, 12, 24]},
+    "small": {"embed_dim": 96, "depths": [2, 2, 18, 2], "num_heads": [3, 6, 12, 24]},
+    "base": {"embed_dim": 128, "depths": [2, 2, 18, 2], "num_heads": [4, 8, 16, 32]},
+    "large": {"embed_dim": 192, "depths": [2, 2, 18, 2], "num_heads": [6, 12, 24, 48]},
+}
+
+SEED_CONFIG = {
+    "seed": 42,
+    "deterministic": False,
+}
 
 # ============================================================
 # Basics
@@ -14,9 +24,9 @@ IMG_SIZE = 224  # pretrained image size (ImageNet standard)
 
 # Can be overridden with a local path if needed
 if MODEL_TYPE == "swin":
-    CHECKPOINT = f"timm:swin_{SWIN_VARIANT}_patch4_window7_224.a1_in1k"
+    CHECKPOINT = f"{PROJECT_ROOT}/trained_models/timm_swin_{SWIN_VARIANT}_patch4_window7_224.pth"
 elif MODEL_TYPE == "resnet":
-    CHECKPOINT = "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet50_a1_0-14fe96d1.pth"
+    CHECKPOINT = f"{PROJECT_ROOT}/trained_models/timm_resnet50.pth"
 else:
     raise ValueError(f"Unknown MODEL_TYPE: {MODEL_TYPE}")
 
@@ -37,7 +47,7 @@ MILESTONES = [8, 11]  # for 1x schedule
 BATCH_SIZE = 8
 ACCUMULATIVE_COUNTS = 2  # gradient accumulation steps
 
-NUM_WORKERS = 4
+NUM_WORKERS = 2
 
 # COCO dataset
 
@@ -119,7 +129,7 @@ data_preprocessor = dict(
 
 # Feature Pyramid Network (FPN)
 if MODEL_TYPE == "swin":
-    BASE_CHANNELS = backbone["embedding_dim"]
+    BASE_CHANNELS = SWIN_PRESETS[SWIN_VARIANT]["embed_dim"]
 elif MODEL_TYPE == "resnet":
     BASE_CHANNELS = 256
 neck = dict(
