@@ -1,0 +1,12 @@
+Bootstrap: docker
+From: python:3.11
+
+%files
+$PWD/requirements_mmdet.txt requirements_mmdet.txt
+
+%post
+pip install "numpy>=1.21,<2"
+pip install --root-user-action=ignore torch==2.1.0+cu121 torchvision==0.16.0+cu121 --index-url https://download.pytorch.org/whl/cu121
+pip install --root-user-action=ignore mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu121/torch2.1.0/index.html
+pip install --root-user-action=ignore -r requirements_mmdet.txt
+pip install --root-user-action=ignore scikit-learn
