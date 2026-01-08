@@ -2,6 +2,8 @@
 
 Train and compare Swin Transformers, Vision Transformers (ViT), and ResNet models from scratch on CIFAR-10, CIFAR-100, ImageNet, and ADE20K. Includes comprehensive ablation studies for Swin Transformer architectural components.
 
+> **Also included:** Object Detection on COCO 2017 using MMDetection (Cascade Mask R-CNN + FPN), supporting Swin and ResNet backbones.
+
 ## 🚀 Quick Setup
 
 ### 1. Choose Dataset
@@ -156,3 +158,91 @@ Results saved to `runs/run_XX/`:
 └── results_*.json                 # Final metrics
 ```
 
+## 🧩 Object Detection on COCO (MMDetection)
+
+This project extends the Swin Transformer analysis to object detection on the **COCO 2017** dataset. We utilize **MMDetection** to implement a **Cascade Mask R-CNN** with a Feature Pyramid Network (FPN), supporting both **Swin Transformer** and **ResNet** backbones.
+
+> **Note:** Because MMDetection requires a specific dependency stack (including a different PyTorch version than the main classification pipeline), this component runs in a separate, dedicated container.
+
+---
+
+### 1. Requirements & Setup
+
+#### Dataset (COCO 2017)
+You must download and extract the COCO 2017 dataset beforehand. The directory structure should look like this:
+
+```text
+coco/
+├── annotations/
+│   ├── instances_train2017.json
+│   ├── instances_val2017.json
+│   └── ...
+├── train2017/
+│   ├── 000000000009.jpg
+│   └── ...
+└── val2017/
+    ├── 000000000139.jpg
+    └── ...
+```
+
+#### Container Environment
+We provide a Singularity/Apptainer definition file to build the required environment:
+* **File:** `od_mmdet.def`
+* **Contents:** MMDetection, mmcv-full, and compatible PyTorch/CUDA versions.
+
+---
+
+### 2. Configuration
+
+Detection-specific settings are located in `config/od_config.py`. You must set the paths to match your environment.
+
+**Key Parameters:**
+
+| Parameter | Description | Options |
+| :--- | :--- | :--- |
+| `MODEL_TYPE` | Backbone architecture | `"swin"` or `"resnet"` |
+| `SWIN_VARIANT` | Swin size (if Swin is used) | `"tiny"`, `"small"`, `"base"`, `"large"` |
+| `PROJECT_ROOT` | Absolute path to this repo | `"/home/user/Machine-Learning-Project"` |
+| `DATA_ROOT` | Path containing the `coco` folder | `"/home/user/datasets"` |
+
+---
+
+### 3. Execution
+
+#### Option A: Running on Cluster (Slurm)
+Once the `od_mmdet.sif` container is built, submit the job script:
+
+```bash
+sbatch job_od.slurm
+```
+
+#### Option B: Running Locally
+1.  Install the dependencies listed in `requirements_mmdet.txt`.
+2.  Run the detection entry point:
+
+```bash
+python main_od.py
+```
+
+---
+
+### 4. Output & Artifacts
+
+Detection runs are saved in an MMDetection-style structure under the `runs/` directory.
+
+**Directory Naming Convention:**
+`cascade_mask_rcnn_{MODEL_TYPE}_{VARIANT}_fpn_coco`
+
+**Example Structure:**
+```text
+runs/
+└── cascade_mask_rcnn_swin_tiny_fpn_coco/
+    ├── od_config.py              # Your user config copy
+    ├── last_checkpoint           # Symlink to latest weight
+    └── 20260104_220010/          # Timestamped run folder
+        ├── 20260104_220010.log       # Training logs
+        └── vis_data/                 # Visualization data
+            ├── scalars.json          # Loss metrics for plotting
+            ├── config.py             # Final resolved MMDetection config
+            └── 20260104_220010.json
+```
