@@ -60,6 +60,26 @@ RESNET_CONFIG = {
 }
 
 # =============================================================================
+# DeiT Configuration (for DeiT-S + UperNet experiments)
+# Following Swin paper Table 3 and mmsegmentation implementation:
+# - MultiLevelNeck with bilinear interpolation (NOT learned deconvolution)
+# - Same channel dimension across all levels (384 for DeiT-S)
+# - Expected: ~52M total params (22M encoder + 30M head)
+# =============================================================================
+DEIT_CONFIG = {
+    "type": "deit",
+    "variant": "deit_small_patch16_224",  # DeiT-S from timm (22.1M params)
+    "pretrained": True,  # Load ImageNet pretrained weights from timm
+    "img_size": 512,  # ADE20K resolution
+    "patch_size": 16,  # DeiT patch size (fixed)
+    "embed_dim": 384,  # DeiT-S embedding dimension
+    # Extract features from these layers (0-indexed, DeiT has 12 layers)
+    # Using layers 3, 6, 9, 12 (paper approach) = indices 2, 5, 8, 11
+    "extract_layers": (2, 5, 8, 11),
+    "use_gradient_checkpointing": True,  # Enable for memory efficiency on 12GB GPUs
+}
+
+# =============================================================================
 # Downstream Task Configuration
 # =============================================================================
 # Training mode: "linear_probe" or "from_scratch"

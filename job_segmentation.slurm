@@ -3,20 +3,22 @@
 #SBATCH --gpus=1
 #SBATCH --mem=64G
 #SBATCH --time=168:00:00
-#SBATCH --job-name=resnet101_ade20k_seg
+#SBATCH --job-name=deit_ade20k_seg
 #SBATCH --output=logs/%j_%x.out
 #SBATCH --error=logs/%j_%x.err
 #SBATCH --chdir=/home/pml20/Machine-Learning-Project
 
 # =============================================================================
-# ADE20K Semantic Segmentation Training - ResNet-101 + UperNet
+# ADE20K Semantic Segmentation Training - DeiT-S + UperNet
 # =============================================================================
 # Training Configuration:
-# - ResNet-101 backbone (ImageNet pretrained from torchvision)
+# - DeiT-S backbone (ImageNet pretrained from timm)
+# - MultiLevelNeck with bilinear interpolation for hierarchical features
 # - UperNet decoder head
 # - Fine-tune both encoder and decoder
-# - 160 epochs, lr=6e-5, batch_size=16
+# - 160 epochs, lr=6e-5, batch_size=8
 # - 512x512 input resolution
+# - Expected: ~52M total params (matching paper Table 3)
 # =============================================================================
 
 mkdir -p logs

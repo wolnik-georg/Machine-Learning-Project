@@ -21,6 +21,7 @@ from config.ade20k_config import (
     DATA_CONFIG,
     SWIN_CONFIG,
     RESNET_CONFIG,
+    DEIT_CONFIG,
     DOWNSTREAM_CONFIG,
     TRAINING_CONFIG,
     SEED_CONFIG,
@@ -45,9 +46,9 @@ def setup_device() -> torch.device:
     return device
 
 
-# Choose encoder backbone: "swin" or "resnet"
-# Set this to "resnet" to train ResNet-101 + UperNet
-ENCODER_TYPE = "resnet"  # Options: "swin", "resnet"
+# Choose encoder backbone: "swin", "resnet", or "deit"
+# Set this to "deit" to train DeiT-S + UperNet (with MultiLevelNeck for hierarchical features)
+ENCODER_TYPE = "deit"  # Options: "swin", "resnet", "deit"
 
 
 def main():
@@ -57,6 +58,9 @@ def main():
         if ENCODER_TYPE == "resnet":
             model_name = f"ResNet-101 + UperNet"
             encoder_config = RESNET_CONFIG
+        elif ENCODER_TYPE == "deit":
+            model_name = "DeiT-S + UperNet"
+            encoder_config = DEIT_CONFIG
         else:
             model_name = "Swin-T + UperNet"
             encoder_config = SWIN_CONFIG
@@ -132,6 +136,7 @@ def main():
             resume_checkpoint=TRAINING_CONFIG.get("resume_from_checkpoint"),
             encoder_type=ENCODER_TYPE,
             resnet_config=RESNET_CONFIG if ENCODER_TYPE == "resnet" else None,
+            deit_config=DEIT_CONFIG if ENCODER_TYPE == "deit" else None,
         )
 
         logger.info("Segmentation training completed successfully!")

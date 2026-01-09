@@ -10,6 +10,7 @@ from .swin.swin_transformer_model import SwinTransformerModel
 from .model_wrapper import ModelWrapper
 from .segmentation_wrapper import SegmentationModelWrapper
 from .resnet_encoder import ResNetFeatureExtractor, ResNetSegmentationWrapper
+from .deit_encoder import DeiTFeatureExtractor, DeiTSegmentationWrapper
 from .heads import LinearClassificationHead, UperNetHead
 
 
@@ -300,6 +301,84 @@ def create_resnet_segmentation_model(resnet_config, downstream_config):
     
     # Combine encoder + head
     model = ResNetSegmentationWrapper(
+        encoder=encoder,
+        seg_head=seg_head,
+        freeze_encoder=downstream_config.get("freeze_encoder", False),
+    )
+    
+    # Print parameter counts
+    param_counts = model.get_num_params()
+    print(f"Model parameters: encoder={param_counts['encoder']:,}, "
+          f"head={param_counts['head']:,}, total={param_counts['total']:,}, "
+          f"trainable={param_counts['trainable']:,}")
+    
+    return model
+
+
+def create_deit_segmentation_model(deit_config, downstream_config):
+    """
+    Create segmentation model with DeiT encoder + UperNet head.
+    
+    This function loads a pretrained DeiT from timm and combines it with
+    UperNet for semantic segmentation. Since DeiT outputs single-scale features,
+    MultiLevelNeck (bilinear interpolation) is used to create a pseudo-hierarchy
+    compatible with UperNet, following the exact approach in mmsegmentation
+    and the Swin Transformer paper (Table 3).
+    
+    Key: All feature levels have the SAME channel dimension (384 for DeiT-S),
+    which matches the paper's 52M parameter count.
+    
+    Args:
+        deit_config: DeiT configuration dictionary with keys:
+            - variant: timm model name (default: 'deit_small_patch16_224')
+            - pretrained: Whether to load ImageNet pretrained weights (default: True)
+            - img_size: Input image size (default: 512)
+            - extract_layers: Which transformer layers to extract (default: (2,5,8,11))
+        downstream_config: DOWNSTREAM_CONFIG dictionary with keys:
+            - num_classes: Number of segmentation classes (e.g., 150 for ADE20K)
+            - freeze_encoder: If True, freeze DeiT encoder weights
+    
+    Returns:
+        DeiTSegmentationWrapper containing encoder + segmentation head
+    """
+    # Get DeiT configuration
+    variant = deit_config.get("variant", "deit_small_patch16_224")
+    pretrained = deit_config.get("pretrained", True)
+    img_size = deit_config.get("img_size", 512)
+    use_gradient_checkpointing = deit_config.get("use_gradient_checkpointing", False)
+    extract_layers = deit_config.get("extract_layers", (2, 5, 8, 11))
+    
+    print(f"Creating DeiT segmentation model: {variant}, pretrained={pretrained}, "
+          f"gradient_checkpointing={use_gradient_checkpointing}")
+    print(f"Extracting features from layers: {extract_layers}")
+    
+    # Create DeiT feature extractor with MultiLevelNeck (bilinear interpolation)
+    encoder = DeiTFeatureExtractor(
+        variant=variant,
+        pretrained=pretrained,
+        img_size=img_size,
+        use_gradient_checkpointing=use_gradient_checkpointing,
+        extract_layers=extract_layers,
+    )
+    
+    # Get feature channels from encoder
+    # DeiT with MultiLevelNeck: [384, 384, 384, 384] (same channels, matching paper)
+    in_channels = encoder.out_channels
+    
+    print(f"DeiT encoder feature channels: {in_channels}")
+    print(f"DeiT embed_dim={encoder.embed_dim}, patch_size={encoder.patch_size}")
+    
+    # Create UperNet segmentation head
+    seg_head = UperNetHead(
+        in_channels=in_channels,
+        num_classes=downstream_config["num_classes"],
+        channels=512,  # FPN channels (standard for UperNet)
+        pool_scales=(1, 2, 3, 6),  # PPM scales from paper
+        dropout=0.1,  # Dropout before classifier
+    )
+    
+    # Combine encoder + head
+    model = DeiTSegmentationWrapper(
         encoder=encoder,
         seg_head=seg_head,
         freeze_encoder=downstream_config.get("freeze_encoder", False),
