@@ -246,3 +246,119 @@ runs/
             ├── config.py             # Final resolved MMDetection config
             └── 20260104_220010.json
 ```
+
+---
+
+## 🎨 Semantic Segmentation on ADE20K (UPerNet)
+
+This project extends the analysis to semantic segmentation on **ADE20K** (150 classes, 512×512 resolution). We implement **UPerNet** with **Pyramid Pooling Module (PPM)** and **Feature Pyramid Network (FPN)**, supporting **Swin Transformer**, **ResNet**, and **DeiT** backbones with ImageNet-1K pretrained weights.
+
+> **Note:** Uses a separate entry point (`main_segmentation.py`) and configuration (`config/ade20k_config.py`) to avoid interference with classification.
+
+---
+
+### 1. Requirements & Setup
+
+#### Dataset (ADE20K)
+Auto-downloaded on first run. Expected structure:
+
+```text
+ADE20K/
+├── images/training/        # 20,210 images
+├── images/validation/      # 2,000 images
+└── annotations/            # Segmentation masks
+```
+
+---
+
+### 2. Configuration
+
+Segmentation settings in `config/ade20k_config.py`. Choose backbone in `main_segmentation.py`:
+
+```python
+ENCODER_TYPE = "swin"  # Options: "swin", "resnet", "deit"
+```
+
+**Key Parameters:**
+
+| Parameter | Description | Options |
+| :--- | :--- | :--- |
+| `ENCODER_TYPE` | Backbone architecture | `"swin"`, `"resnet"`, `"deit"` |
+| `SWIN_CONFIG["variant"]` | Swin size (if Swin) | `"tiny"` (60M encoder params) |
+| `RESNET_CONFIG["variant"]` | ResNet depth (if ResNet) | `"resnet101"` (86M encoder params) |
+| `DEIT_CONFIG["variant"]` | DeiT model (if DeiT) | `"deit_small_patch16_224"` (22M encoder params) |
+| `batch_size` | Training batch size | `8` (RTX 4070 12GB), `16` (A100 40GB+) |
+| `num_epochs` | Training duration | `160` (paper setting) |
+| `learning_rate` | AdamW learning rate | `6e-5` (paper setting) |
+
+**Training Configuration:**
+```python
+TRAINING_CONFIG = {
+    "learning_rate": 6e-5,
+    "num_epochs": 160,
+    "warmup_epochs": 2,
+    "weight_decay": 0.01,
+    "mixed_precision": True,  # bf16 on modern GPUs
+}
+
+DATA_CONFIG = {
+    "batch_size": 8,          # 12GB GPU constraint
+    "img_size": 512,          # ADE20K standard
+}
+```
+
+---
+
+### 3. Execution
+
+#### Local
+```bash
+python main_segmentation.py
+```
+
+#### Cluster (Slurm)
+```bash
+sbatch job_segmentation.slurm
+squeue -u $USER
+```
+
+---
+
+### 4. Output & Artifacts
+
+Runs saved to `runs/Semantic_segmentation_{backbone}_upernet/`:
+
+**Directory Structure:**
+```text
+runs/
+└── Semantic_segmentation_swin_upernet/
+    ├── training.log              # Epoch metrics (mIoU, Pixel Acc)
+    ├── config.json               # Configuration snapshot
+    ├── best_checkpoint.pth       # Best mIoU weights
+    └── results.json              # Final metrics
+```
+
+**Training Log Example:**
+```
+Epoch 127/160 - Train Loss: 0.3142, Val Loss: 0.4851
+→ New best mIoU: 44.41% (prev: 44.38%)
+Pixel Accuracy: 80.51%
+Checkpoint saved: best_checkpoint.pth
+```
+
+---
+
+### 5. Benchmark Results
+
+Performance on **ADE20K validation** (ImageNet-1K pretrained backbones, UPerNet decoder):
+
+| Backbone | mIoU (%) | Pixel Acc (%) | Params (Encoder + Head) |
+|----------|----------|---------------|-------------------------|
+| **Swin-Tiny** | **44.41** | **80.51** | 60M + 30M |
+| DeiT-Small | 41.34 | 79.66 | 22M + 30M |
+| ResNet-101 | 40.39 | 78.95 | 86M + 30M |
+
+**Observations:**
+- Swin-T achieves best performance with hierarchical features
+- DeiT-S requires MultiLevelNeck for pseudo-hierarchical features
+- ResNet-101 provides strong convolutional baseline
