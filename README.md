@@ -67,9 +67,9 @@ MODEL_CONFIGS = {
 #### Training Configuration
 ```python
 TRAINING_CONFIG = {
-    "learning_rate": 2e-4,    # Conservative LR for testing
-    "num_epochs": 5,          # Quick test run (5 hours)
-    "warmup_epochs": 1,       # Learning rate warmup (~20%)
+    "learning_rate": 2e-4,    # Conservative LR for 100 epochs
+    "num_epochs": 100,        # Full convergence training
+    "warmup_epochs": 7,       # Learning rate warmup (~7%)
     "batch_size": 128,        # Optimized with gradient checkpointing
 }
 ```

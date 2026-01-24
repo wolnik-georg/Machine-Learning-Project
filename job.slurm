@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-2h    # your short partition for testing
+#SBATCH --partition=gpu-teaching-7d    # your long partition
 #SBATCH --gpus=1
 #SBATCH --exclusive                      # ← NO sharing with other users → fixes node contention
-#SBATCH --time=05:00:00                 # 5 hours for quick test run
+#SBATCH --time=336:00:00                 # 14 days for 100-epoch training
 #SBATCH --job-name=imagenet_$(python3 -c "from config.imagenet_config import MODEL_TYPE; print(MODEL_TYPE)")_100ep        # dynamic job name based on model type
 #SBATCH --output=logs/%j_%x.out          # includes job name → easier to find
 #SBATCH --error=logs/%j_%x.err
