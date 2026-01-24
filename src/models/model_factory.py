@@ -30,6 +30,8 @@ def create_model(config):
         return create_swin_model(config)
     elif model_type == "swin_hybrid":
         return create_swin_hybrid_model(config)
+    elif model_type == "swin_improved":
+        return create_swin_improved_model(config)
     elif model_type == "vit":
         return create_vit_model(config)
     elif model_type == "resnet":
@@ -222,6 +224,243 @@ class HybridSwinEncoder(torch.nn.Module):
         else:
             # Fallback to vanilla patch embedding
             x = self.patch_embed(x)
+
+        # Proceed with Swin transformer layers
+        x = self.swin_model.layers(x)
+        x = self.swin_model.norm(x)
+
+        return x
+
+
+def create_swin_improved_model(config):
+    """Create Improved Swin model with conv stem and inverted residual FFN."""
+    # Create the base Swin model
+    swin_encoder = SwinTransformerModel(
+        img_size=224,  # Fixed for ImageNet
+        patch_size=config["patch_size"],
+        embedding_dim=config["embed_dim"],
+        depths=config["depths"],
+        num_heads=config["num_heads"],
+        window_size=config["window_size"],
+        mlp_ratio=config["mlp_ratio"],
+        dropout_rate=config["dropout"],
+        attention_dropout_rate=config["attention_dropout"],
+        projection_dropout_rate=config["projection_dropout"],
+        drop_path_rate=config["drop_path_rate"],
+        use_shifted_window=config["use_shifted_window"],
+        use_relative_bias=config["use_relative_bias"],
+        use_absolute_pos_embed=config["use_absolute_pos_embed"],
+        use_hierarchical_merge=config["use_hierarchical_merge"],
+        use_gradient_checkpointing=config.get("use_gradient_checkpointing", False),
+    )
+
+    # Create convolutional stem
+    conv_stem_config = config.get("conv_stem_config", {})
+    conv_stem = create_conv_stem(
+        in_channels=3,
+        embed_dim=config["embed_dim"],
+        channels=conv_stem_config.get("channels", [48, 96]),
+        kernel_sizes=conv_stem_config.get("kernel_sizes", [4, 3]),
+        strides=conv_stem_config.get("strides", [4, 2]),
+        paddings=conv_stem_config.get("paddings", [0, 1]),
+        activation=conv_stem_config.get("activation", "gelu"),
+        use_batch_norm=conv_stem_config.get("use_batch_norm", True),
+    )
+
+    # Create improved encoder with conv stem and inverted FFN
+    improved_encoder = ImprovedSwinEncoder(
+        swin_model=swin_encoder,
+        conv_stem=conv_stem,
+        use_conv_stem=config.get("use_conv_stem", True),
+        embed_dim=config["embed_dim"],
+        ffn_config=config.get("ffn_config", {}),
+        use_inverted_ffn=config.get("use_inverted_ffn", True),
+    )
+
+    pred_head = LinearClassificationHead(
+        num_features=improved_encoder.num_features,
+        num_classes=1000,  # ImageNet
+    )
+
+    return ModelWrapper(
+        encoder=improved_encoder,
+        pred_head=pred_head,
+        freeze=False,  # From scratch training
+    )
+
+
+def create_conv_stem(
+    in_channels,
+    embed_dim,
+    channels,
+    kernel_sizes,
+    strides,
+    paddings,
+    activation,
+    use_batch_norm,
+):
+    """Create overlapping convolutional stem for improved patch embedding."""
+    layers = []
+    current_channels = in_channels
+
+    # Intermediate convolutional layers
+    for i, (out_channels, kernel_size, stride, padding) in enumerate(
+        zip(channels, kernel_sizes, strides, paddings)
+    ):
+        layers.extend(
+            [
+                torch.nn.Conv2d(
+                    current_channels,
+                    out_channels,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                ),
+            ]
+        )
+        if use_batch_norm:
+            layers.append(torch.nn.BatchNorm2d(out_channels))
+
+        if activation == "gelu":
+            layers.append(torch.nn.GELU())
+        elif activation == "silu":
+            layers.append(torch.nn.SiLU())
+        else:
+            layers.append(torch.nn.ReLU())
+
+        current_channels = out_channels
+
+    # Final projection to match Swin embed_dim
+    layers.extend(
+        [
+            torch.nn.Conv2d(
+                current_channels, embed_dim, kernel_size=1, stride=1, padding=0
+            ),
+        ]
+    )
+    if use_batch_norm:
+        layers.append(torch.nn.BatchNorm2d(embed_dim))
+
+    if activation == "gelu":
+        layers.append(torch.nn.GELU())
+    elif activation == "silu":
+        layers.append(torch.nn.SiLU())
+    else:
+        layers.append(torch.nn.ReLU())
+
+    return torch.nn.Sequential(*layers)
+
+
+class InvertedResidualFFN(torch.nn.Module):
+    """Inverted Residual FFN with depthwise convolution (MobileNetV2 style)."""
+
+    def __init__(self, dim, expand_ratio=4, drop=0.0, activation="gelu"):
+        super().__init__()
+        hidden_dim = int(dim * expand_ratio)
+
+        # Expansion
+        self.fc1 = torch.nn.Linear(dim, hidden_dim)
+
+        # Depthwise convolution for local mixing
+        self.dwconv = torch.nn.Conv2d(
+            hidden_dim, hidden_dim, 3, 1, 1, groups=hidden_dim
+        )
+
+        # Activation
+        if activation == "gelu":
+            self.act = torch.nn.GELU()
+        elif activation == "silu":
+            self.act = torch.nn.SiLU()
+        else:
+            self.act = torch.nn.ReLU()
+
+        # Projection back
+        self.fc2 = torch.nn.Linear(hidden_dim, dim)
+        self.drop = torch.nn.Dropout(drop)
+
+    def forward(self, x, H, W):
+        shortcut = x
+        x = self.fc1(x)
+
+        # Reshape for depthwise conv: B, L, C -> B, C, H, W
+        B, L, C = x.shape
+        x = x.transpose(1, 2).view(B, C, H, W)
+
+        # Depthwise convolution
+        x = self.dwconv(x)
+
+        # Reshape back: B, C, H, W -> B, L, C
+        x = x.flatten(2).transpose(1, 2)
+
+        # Activation and projection
+        x = self.act(x)
+        x = self.fc2(x)
+        x = self.drop(x)
+
+        return shortcut + x  # Residual connection
+
+
+class ImprovedSwinEncoder(torch.nn.Module):
+    """Improved Swin encoder with conv stem and inverted residual FFN."""
+
+    def __init__(
+        self,
+        swin_model,
+        conv_stem,
+        use_conv_stem,
+        embed_dim,
+        ffn_config,
+        use_inverted_ffn,
+    ):
+        super().__init__()
+        self.swin_model = swin_model
+        self.conv_stem = conv_stem
+        self.use_conv_stem = use_conv_stem
+        self.embed_dim = embed_dim
+        self.use_inverted_ffn = use_inverted_ffn
+
+        # Copy important attributes from swin model
+        self.num_features = swin_model.num_features
+
+        # Replace FFN blocks if using inverted residual
+        if use_inverted_ffn:
+            self._replace_ffn_blocks(ffn_config)
+
+    def _replace_ffn_blocks(self, ffn_config):
+        """Replace all FFN blocks in Swin layers with inverted residual FFN."""
+        expand_ratio = ffn_config.get("expand_ratio", 4)
+        activation = ffn_config.get("activation", "gelu")
+
+        for layer in self.swin_model.layers:
+            for block in layer.blocks:
+                # Replace the MLP with inverted residual FFN
+                original_mlp = block.mlp
+                inverted_ffn = InvertedResidualFFN(
+                    dim=getattr(original_mlp, "dim", self.embed_dim),
+                    expand_ratio=expand_ratio,
+                    drop=getattr(original_mlp, "drop", 0.0),
+                    activation=activation,
+                )
+                block.mlp = inverted_ffn
+
+    def forward(self, x):
+        if self.use_conv_stem:
+            # Apply convolutional stem
+            x = self.conv_stem(x)  # → B, C, H/4, W/4
+
+            # Flatten spatial dimensions to create patch tokens
+            B, C, H, W = x.shape
+            x = x.flatten(2).transpose(1, 2)  # → B, HW/16, C
+
+            # Add absolute position embedding if the original Swin uses it
+            if (
+                hasattr(self.swin_model, "absolute_pos_embed")
+                and self.swin_model.absolute_pos_embed is not None
+            ):
+                x = x + self.swin_model.absolute_pos_embed
+        else:
+            # Fallback to vanilla patch embedding
+            x = self.swin_model.patch_embed(x)
 
         # Proceed with Swin transformer layers
         x = self.swin_model.layers(x)

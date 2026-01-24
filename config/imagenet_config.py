@@ -12,7 +12,9 @@ from .base_config import (
 )
 
 # Model type selection for comparison experiments
-MODEL_TYPE = "swin_hybrid"  # Options: "swin", "swin_hybrid", "vit", "resnet"
+MODEL_TYPE = (
+    "swin_improved"  # Options: "swin", "swin_hybrid", "swin_improved", "vit", "resnet"
+)
 
 # Model configurations for all types
 MODEL_CONFIGS = {
@@ -62,6 +64,42 @@ MODEL_CONFIGS = {
             "padding": 1,
             "activation": "gelu",  # GELU activation
             "use_batch_norm": True,
+        },
+    },
+    "swin_improved": {
+        "type": "swin_improved",
+        "variant": "tiny",
+        "patch_size": 4,
+        "embed_dim": None,  # Auto-set from preset
+        "depths": None,  # Auto-set from preset
+        "num_heads": None,  # Auto-set from preset
+        "window_size": 7,
+        "mlp_ratio": 4.0,
+        "dropout": 0.0,
+        "attention_dropout": 0.0,
+        "projection_dropout": 0.0,
+        "drop_path_rate": 0.08,
+        "use_shifted_window": True,
+        "use_relative_bias": False,
+        "use_absolute_pos_embed": False,
+        "use_hierarchical_merge": False,
+        "use_gradient_checkpointing": True,  # Enable for memory efficiency
+        # Convolutional stem (replaces vanilla patch embedding)
+        "use_conv_stem": True,
+        "conv_stem_config": {
+            "channels": [48, 96],  # Overlapping conv stem channels
+            "kernel_sizes": [4, 3],  # First conv kernel size 4, second 3
+            "strides": [4, 2],  # Downsampling strides
+            "paddings": [0, 1],  # Corresponding paddings
+            "activation": "gelu",
+            "use_batch_norm": True,
+        },
+        # Inverted residual FFN configuration
+        "use_inverted_ffn": True,
+        "ffn_config": {
+            "expand_ratio": 4,  # Expansion ratio for inverted residual
+            "use_depthwise_conv": True,  # Enable depthwise convolution
+            "activation": "gelu",  # Activation function
         },
     },
     "vit": {
