@@ -33,7 +33,7 @@ MODEL_CONFIGS = {
         "use_relative_bias": False,
         "use_absolute_pos_embed": False,
         "use_hierarchical_merge": False,
-        "use_gradient_checkpointing": False,
+        "use_gradient_checkpointing": True,  # Enable for memory efficiency during long training
     },
     "vit": {
         "type": "vit",
@@ -100,12 +100,12 @@ DOWNSTREAM_CONFIG = {
 TRAINING_CONFIG = {
     "seed": 42,  # Random seed for reproducibility
     "deterministic": False,  # Set to True for fully reproducible (but slower) training
-    "learning_rate": 3e-4,  # Optimal for batch_size=128, 50 epochs (scaled from Swin paper)
-    "num_epochs": 2,  # Full training duration for Swin Transformer
-    "warmup_epochs": 1,  # ~6% of 50 epochs for stability
+    "learning_rate": 2e-4,  # More conservative for 100 epochs
+    "num_epochs": 100,  # Full convergence training
+    "warmup_epochs": 7,  # ~7% of 100 epochs for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.02,  # Balanced regularization
-    "min_lr": 5e-5,  # Lower minimum LR for full cosine decay
+    "min_lr": 1e-5,  # Lower minimum LR for full cosine decay
     "lr_scheduler_type": "cosine",  # Pure cosine annealing as in Swin paper
     "mixed_precision": True,
     "compile": True,
