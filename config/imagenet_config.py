@@ -12,7 +12,7 @@ from .base_config import (
 )
 
 # Model type selection for comparison experiments
-MODEL_TYPE = "swin"  # Options: "swin", "vit", "resnet"
+MODEL_TYPE = "swin_hybrid"  # Options: "swin", "swin_hybrid", "vit", "resnet"
 
 # Model configurations for all types
 MODEL_CONFIGS = {
@@ -34,6 +34,35 @@ MODEL_CONFIGS = {
         "use_absolute_pos_embed": False,
         "use_hierarchical_merge": False,
         "use_gradient_checkpointing": True,  # Enable for memory efficiency during long training
+    },
+    "swin_hybrid": {
+        "type": "swin_hybrid",
+        "variant": "tiny",
+        "patch_size": 4,
+        "embed_dim": None,  # Auto-set from preset
+        "depths": None,  # Auto-set from preset
+        "num_heads": None,  # Auto-set from preset
+        "window_size": 7,
+        "mlp_ratio": 4.0,
+        "dropout": 0.0,
+        "attention_dropout": 0.0,
+        "projection_dropout": 0.0,
+        "drop_path_rate": 0.08,
+        "use_shifted_window": True,
+        "use_relative_bias": False,
+        "use_absolute_pos_embed": False,
+        "use_hierarchical_merge": False,
+        "use_gradient_checkpointing": True,  # Enable for memory efficiency
+        # CNN stem configuration for hybrid
+        "use_cnn_stem": True,  # Enable CNN-Swin early fusion
+        "cnn_stem_config": {
+            "channels": [32, 64],  # Intermediate channels before final projection
+            "kernel_size": 3,
+            "stride": 2,
+            "padding": 1,
+            "activation": "gelu",  # GELU activation
+            "use_batch_norm": True,
+        },
     },
     "vit": {
         "type": "vit",
@@ -101,8 +130,8 @@ TRAINING_CONFIG = {
     "seed": 42,  # Random seed for reproducibility
     "deterministic": False,  # Set to True for fully reproducible (but slower) training
     "learning_rate": 2e-4,  # More conservative for 100 epochs
-    "num_epochs": 100,  # Full convergence training
-    "warmup_epochs": 7,  # ~7% of 100 epochs for stability
+    "num_epochs": 5,  # Quick test run (5 hours)
+    "warmup_epochs": 1,  # ~20% of 5 epochs for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.02,  # Balanced regularization
     "min_lr": 1e-5,  # Lower minimum LR for full cosine decay

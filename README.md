@@ -37,8 +37,14 @@ TRAINING_CONFIG = {
 #### Model Selection
 Choose which model to train from scratch:
 ```python
-MODEL_TYPE = "swin"  # Options: "swin", "vit", "resnet"
+MODEL_TYPE = "swin"  # Options: "swin", "swin_hybrid", "vit", "resnet"
 ```
+
+**Model Descriptions:**
+- `"swin"`: Baseline Swin Transformer (vanilla implementation)
+- `"swin_hybrid"`: **NEW** Hybrid CNN-Swin with early fusion (Milestone 3 improvement)
+- `"vit"`: Vision Transformer baseline
+- `"resnet"`: ResNet-50 baseline
 
 #### Ablation Studies (Swin Transformer Only)
 Enable/disable architectural components for ablation experiments:
@@ -61,10 +67,34 @@ MODEL_CONFIGS = {
 #### Training Configuration
 ```python
 TRAINING_CONFIG = {
-    "learning_rate": 2e-4,    # Conservative LR for 100 epochs
-    "num_epochs": 100,        # Full convergence training
-    "warmup_epochs": 7,       # Learning rate warmup (~7%)
+    "learning_rate": 2e-4,    # Conservative LR for testing
+    "num_epochs": 5,          # Quick test run (5 hours)
+    "warmup_epochs": 1,       # Learning rate warmup (~20%)
     "batch_size": 128,        # Optimized with gradient checkpointing
+}
+```
+
+#### Hybrid CNN-Swin Model (Milestone 3)
+The `swin_hybrid` model implements **early fusion** between a lightweight CNN stem and Swin Transformer:
+
+```python
+MODEL_TYPE = "swin_hybrid"  # Enable hybrid architecture
+```
+
+**Architecture:**
+- **CNN Stem**: 3 convolutional layers (32→64→96 channels) with BatchNorm + GELU
+- **Fusion**: Cascaded (CNN output replaces vanilla patch embedding)
+- **Swin Backbone**: Standard hierarchical transformer with shifted windows
+- **Expected Gain**: +1-4% top-1 accuracy through better local inductive biases
+
+**Configuration:**
+```python
+"cnn_stem_config": {
+    "channels": [32, 64],      # Intermediate channels
+    "kernel_size": 3,          # 3×3 convolutions
+    "stride": 2,               # Downsampling by 8× total
+    "activation": "gelu",      # GELU activation
+    "use_batch_norm": True,    # Batch normalization
 }
 ```
 

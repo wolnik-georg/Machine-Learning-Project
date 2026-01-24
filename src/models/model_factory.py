@@ -28,6 +28,8 @@ def create_model(config):
 
     if model_type == "swin":
         return create_swin_model(config)
+    elif model_type == "swin_hybrid":
+        return create_swin_hybrid_model(config)
     elif model_type == "vit":
         return create_vit_model(config)
     elif model_type == "resnet":
@@ -67,6 +69,165 @@ def create_swin_model(config):
         pred_head=pred_head,
         freeze=False,  # From scratch training
     )
+
+
+def create_swin_hybrid_model(config):
+    """Create Hybrid CNN-Swin model with early fusion."""
+    # Create the base Swin model
+    swin_encoder = SwinTransformerModel(
+        img_size=224,  # Fixed for ImageNet
+        patch_size=config["patch_size"],
+        embedding_dim=config["embed_dim"],
+        depths=config["depths"],
+        num_heads=config["num_heads"],
+        window_size=config["window_size"],
+        mlp_ratio=config["mlp_ratio"],
+        dropout_rate=config["dropout"],
+        attention_dropout_rate=config["attention_dropout"],
+        projection_dropout_rate=config["projection_dropout"],
+        drop_path_rate=config["drop_path_rate"],
+        use_shifted_window=config["use_shifted_window"],
+        use_relative_bias=config["use_relative_bias"],
+        use_absolute_pos_embed=config["use_absolute_pos_embed"],
+        use_hierarchical_merge=config["use_hierarchical_merge"],
+        use_gradient_checkpointing=config.get("use_gradient_checkpointing", False),
+    )
+
+    # Create CNN stem for early fusion
+    cnn_stem_config = config.get("cnn_stem_config", {})
+    cnn_stem = create_cnn_stem(
+        in_channels=3,
+        embed_dim=config["embed_dim"],
+        channels=cnn_stem_config.get("channels", [32, 64]),
+        kernel_size=cnn_stem_config.get("kernel_size", 3),
+        stride=cnn_stem_config.get("stride", 2),
+        padding=cnn_stem_config.get("padding", 1),
+        activation=cnn_stem_config.get("activation", "gelu"),
+        use_batch_norm=cnn_stem_config.get("use_batch_norm", True),
+    )
+
+    # Create hybrid encoder
+    hybrid_encoder = HybridSwinEncoder(
+        swin_model=swin_encoder,
+        cnn_stem=cnn_stem,
+        use_cnn_stem=config.get("use_cnn_stem", True),
+        embed_dim=config["embed_dim"],
+    )
+
+    pred_head = LinearClassificationHead(
+        num_features=hybrid_encoder.num_features,
+        num_classes=1000,  # ImageNet
+    )
+
+    return ModelWrapper(
+        encoder=hybrid_encoder,
+        pred_head=pred_head,
+        freeze=False,  # From scratch training
+    )
+
+
+def create_cnn_stem(
+    in_channels,
+    embed_dim,
+    channels,
+    kernel_size,
+    stride,
+    padding,
+    activation,
+    use_batch_norm,
+):
+    """Create lightweight CNN stem for early fusion."""
+    layers = []
+    current_channels = in_channels
+
+    # Intermediate convolutional layers
+    for out_channels in channels:
+        layers.extend(
+            [
+                torch.nn.Conv2d(
+                    current_channels,
+                    out_channels,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                ),
+            ]
+        )
+        if use_batch_norm:
+            layers.append(torch.nn.BatchNorm2d(out_channels))
+
+        if activation == "gelu":
+            layers.append(torch.nn.GELU())
+        elif activation == "silu":
+            layers.append(torch.nn.SiLU())
+        else:
+            layers.append(torch.nn.ReLU())
+
+        current_channels = out_channels
+
+    # Final projection to match Swin embed_dim
+    layers.extend(
+        [
+            torch.nn.Conv2d(
+                current_channels,
+                embed_dim,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+            ),
+        ]
+    )
+    if use_batch_norm:
+        layers.append(torch.nn.BatchNorm2d(embed_dim))
+
+    if activation == "gelu":
+        layers.append(torch.nn.GELU())
+    elif activation == "silu":
+        layers.append(torch.nn.SiLU())
+    else:
+        layers.append(torch.nn.ReLU())
+
+    return torch.nn.Sequential(*layers)
+
+
+class HybridSwinEncoder(torch.nn.Module):
+    """Hybrid CNN-Swin encoder with early fusion."""
+
+    def __init__(self, swin_model, cnn_stem, use_cnn_stem, embed_dim):
+        super().__init__()
+        self.swin_model = swin_model
+        self.cnn_stem = cnn_stem
+        self.use_cnn_stem = use_cnn_stem
+        self.embed_dim = embed_dim
+
+        # Copy important attributes from swin model
+        self.num_features = swin_model.num_features
+        self.patch_embed = swin_model.patch_embed if not use_cnn_stem else None
+
+    def forward(self, x):
+        if self.use_cnn_stem:
+            # Apply CNN stem
+            x = self.cnn_stem(x)  # → B, C, H/8, W/8
+
+            # Flatten spatial dimensions to create patch tokens
+            B, C, H, W = x.shape
+            x = x.flatten(2).transpose(1, 2)  # → B, HW/64, C
+
+            # Add absolute position embedding if the original Swin uses it
+            if (
+                hasattr(self.swin_model, "absolute_pos_embed")
+                and self.swin_model.absolute_pos_embed is not None
+            ):
+                x = x + self.swin_model.absolute_pos_embed
+        else:
+            # Fallback to vanilla patch embedding
+            x = self.patch_embed(x)
+
+        # Proceed with Swin transformer layers
+        x = self.swin_model.layers(x)
+        x = self.swin_model.norm(x)
+
+        return x
 
 
 def create_vit_model(config):
@@ -171,17 +332,17 @@ def create_resnet_model(config):
 def create_segmentation_model(swin_config, downstream_config, load_pretrained=True):
     """
     Create segmentation model with Swin encoder + UperNet head.
-    
+
     Args:
         swin_config: SWIN_CONFIG dictionary from config
         downstream_config: DOWNSTREAM_CONFIG dictionary from config
         load_pretrained: If True, load ImageNet pretrained weights for encoder
-    
+
     Returns:
         SegmentationModelWrapper containing encoder + segmentation head
     """
     from src.utils.load_weights import load_pretrained_reference, transfer_weights
-    
+
     # Create Swin Transformer encoder
     encoder = SwinTransformerModel(
         img_size=swin_config["img_size"],  # 512 for ADE20K
@@ -202,12 +363,12 @@ def create_segmentation_model(swin_config, downstream_config, load_pretrained=Tr
         use_hierarchical_merge=swin_config.get("use_hierarchical_merge", False),
         use_gradient_checkpointing=swin_config.get("use_gradient_checkpointing", False),
     )
-    
+
     # Calculate in_channels for each stage
     # Swin-T: [96, 192, 384, 768]
     embed_dim = swin_config["embed_dim"]
-    in_channels = [int(embed_dim * (2 ** i)) for i in range(len(swin_config["depths"]))]
-    
+    in_channels = [int(embed_dim * (2**i)) for i in range(len(swin_config["depths"]))]
+
     # Create UperNet segmentation head
     seg_head = UperNetHead(
         in_channels=in_channels,
@@ -216,45 +377,47 @@ def create_segmentation_model(swin_config, downstream_config, load_pretrained=Tr
         pool_scales=(1, 2, 3, 6),  # PPM scales from paper
         dropout=0.1,  # Dropout before classifier
     )
-    
+
     # Combine encoder + head
     model = SegmentationModelWrapper(
         encoder=encoder,
         seg_head=seg_head,
         freeze_encoder=downstream_config.get("freeze_encoder", False),
     )
-    
+
     # Load pretrained ImageNet weights for encoder
     if load_pretrained and downstream_config.get("use_pretrained", True):
         pretrained_model_name = "swin_tiny_patch4_window7_224"  # TIMM model name
         print(f"Loading pretrained weights from TIMM: {pretrained_model_name}")
-        
+
         pretrained_model = load_pretrained_reference(
             model_name=pretrained_model_name,
             device="cpu",  # Load to CPU first, then move to device
         )
-        
+
         if pretrained_model is not None:
             stats = transfer_weights(
                 custom_model=model,
                 pretrained_model=pretrained_model,
                 encoder_only=True,  # Only transfer encoder weights
             )
-            print(f"Weight transfer complete: {stats['transferred']} layers transferred, "
-                  f"{stats['missing']} missing, {stats['size_mismatches']} size mismatches")
+            print(
+                f"Weight transfer complete: {stats['transferred']} layers transferred, "
+                f"{stats['missing']} missing, {stats['size_mismatches']} size mismatches"
+            )
         else:
             print("Warning: Could not load pretrained weights. Training from scratch.")
-    
+
     return model
 
 
 def create_resnet_segmentation_model(resnet_config, downstream_config):
     """
     Create segmentation model with ResNet encoder + UperNet head.
-    
+
     This function loads a pretrained ResNet-101/50 from torchvision and combines
     it with UperNet for semantic segmentation on ADE20K or similar datasets.
-    
+
     Args:
         resnet_config: ResNet configuration dictionary with keys:
             - variant: 'resnet50' or 'resnet101' (default: 'resnet101')
@@ -263,7 +426,7 @@ def create_resnet_segmentation_model(resnet_config, downstream_config):
         downstream_config: DOWNSTREAM_CONFIG dictionary with keys:
             - num_classes: Number of segmentation classes (e.g., 150 for ADE20K)
             - freeze_encoder: If True, freeze ResNet encoder weights
-    
+
     Returns:
         ResNetSegmentationWrapper containing encoder + segmentation head
     """
@@ -272,10 +435,12 @@ def create_resnet_segmentation_model(resnet_config, downstream_config):
     pretrained = resnet_config.get("pretrained", True)
     img_size = resnet_config.get("img_size", 512)
     use_gradient_checkpointing = resnet_config.get("use_gradient_checkpointing", False)
-    
-    print(f"Creating ResNet segmentation model: {variant}, pretrained={pretrained}, "
-          f"gradient_checkpointing={use_gradient_checkpointing}")
-    
+
+    print(
+        f"Creating ResNet segmentation model: {variant}, pretrained={pretrained}, "
+        f"gradient_checkpointing={use_gradient_checkpointing}"
+    )
+
     # Create ResNet feature extractor
     encoder = ResNetFeatureExtractor(
         variant=variant,
@@ -283,13 +448,13 @@ def create_resnet_segmentation_model(resnet_config, downstream_config):
         use_gradient_checkpointing=use_gradient_checkpointing,
     )
     encoder.set_img_size(img_size)
-    
+
     # Get feature channels from encoder
     # ResNet-101/50: [256, 512, 1024, 2048]
     in_channels = encoder.out_channels
-    
+
     print(f"ResNet encoder feature channels: {in_channels}")
-    
+
     # Create UperNet segmentation head
     seg_head = UperNetHead(
         in_channels=in_channels,
@@ -298,36 +463,38 @@ def create_resnet_segmentation_model(resnet_config, downstream_config):
         pool_scales=(1, 2, 3, 6),  # PPM scales from paper
         dropout=0.1,  # Dropout before classifier
     )
-    
+
     # Combine encoder + head
     model = ResNetSegmentationWrapper(
         encoder=encoder,
         seg_head=seg_head,
         freeze_encoder=downstream_config.get("freeze_encoder", False),
     )
-    
+
     # Print parameter counts
     param_counts = model.get_num_params()
-    print(f"Model parameters: encoder={param_counts['encoder']:,}, "
-          f"head={param_counts['head']:,}, total={param_counts['total']:,}, "
-          f"trainable={param_counts['trainable']:,}")
-    
+    print(
+        f"Model parameters: encoder={param_counts['encoder']:,}, "
+        f"head={param_counts['head']:,}, total={param_counts['total']:,}, "
+        f"trainable={param_counts['trainable']:,}"
+    )
+
     return model
 
 
 def create_deit_segmentation_model(deit_config, downstream_config):
     """
     Create segmentation model with DeiT encoder + UperNet head.
-    
+
     This function loads a pretrained DeiT from timm and combines it with
     UperNet for semantic segmentation. Since DeiT outputs single-scale features,
     MultiLevelNeck (bilinear interpolation) is used to create a pseudo-hierarchy
     compatible with UperNet, following the exact approach in mmsegmentation
     and the Swin Transformer paper (Table 3).
-    
+
     Key: All feature levels have the SAME channel dimension (384 for DeiT-S),
     which matches the paper's 52M parameter count.
-    
+
     Args:
         deit_config: DeiT configuration dictionary with keys:
             - variant: timm model name (default: 'deit_small_patch16_224')
@@ -337,7 +504,7 @@ def create_deit_segmentation_model(deit_config, downstream_config):
         downstream_config: DOWNSTREAM_CONFIG dictionary with keys:
             - num_classes: Number of segmentation classes (e.g., 150 for ADE20K)
             - freeze_encoder: If True, freeze DeiT encoder weights
-    
+
     Returns:
         DeiTSegmentationWrapper containing encoder + segmentation head
     """
@@ -347,11 +514,13 @@ def create_deit_segmentation_model(deit_config, downstream_config):
     img_size = deit_config.get("img_size", 512)
     use_gradient_checkpointing = deit_config.get("use_gradient_checkpointing", False)
     extract_layers = deit_config.get("extract_layers", (2, 5, 8, 11))
-    
-    print(f"Creating DeiT segmentation model: {variant}, pretrained={pretrained}, "
-          f"gradient_checkpointing={use_gradient_checkpointing}")
+
+    print(
+        f"Creating DeiT segmentation model: {variant}, pretrained={pretrained}, "
+        f"gradient_checkpointing={use_gradient_checkpointing}"
+    )
     print(f"Extracting features from layers: {extract_layers}")
-    
+
     # Create DeiT feature extractor with MultiLevelNeck (bilinear interpolation)
     encoder = DeiTFeatureExtractor(
         variant=variant,
@@ -360,14 +529,14 @@ def create_deit_segmentation_model(deit_config, downstream_config):
         use_gradient_checkpointing=use_gradient_checkpointing,
         extract_layers=extract_layers,
     )
-    
+
     # Get feature channels from encoder
     # DeiT with MultiLevelNeck: [384, 384, 384, 384] (same channels, matching paper)
     in_channels = encoder.out_channels
-    
+
     print(f"DeiT encoder feature channels: {in_channels}")
     print(f"DeiT embed_dim={encoder.embed_dim}, patch_size={encoder.patch_size}")
-    
+
     # Create UperNet segmentation head
     seg_head = UperNetHead(
         in_channels=in_channels,
@@ -376,18 +545,20 @@ def create_deit_segmentation_model(deit_config, downstream_config):
         pool_scales=(1, 2, 3, 6),  # PPM scales from paper
         dropout=0.1,  # Dropout before classifier
     )
-    
+
     # Combine encoder + head
     model = DeiTSegmentationWrapper(
         encoder=encoder,
         seg_head=seg_head,
         freeze_encoder=downstream_config.get("freeze_encoder", False),
     )
-    
+
     # Print parameter counts
     param_counts = model.get_num_params()
-    print(f"Model parameters: encoder={param_counts['encoder']:,}, "
-          f"head={param_counts['head']:,}, total={param_counts['total']:,}, "
-          f"trainable={param_counts['trainable']:,}")
-    
+    print(
+        f"Model parameters: encoder={param_counts['encoder']:,}, "
+        f"head={param_counts['head']:,}, total={param_counts['total']:,}, "
+        f"trainable={param_counts['trainable']:,}"
+    )
+
     return model
