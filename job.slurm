@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-2h    # your short partition for testing
+#SBATCH --partition=gpu-teaching-5h    # your short partition for testing
 #SBATCH --gpus=1
 #SBATCH --exclusive                      # ← NO sharing with other users → fixes node contention
 #SBATCH --time=05:00:00                 # 5 hours for quick test run
