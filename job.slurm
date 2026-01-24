@@ -3,7 +3,7 @@
 #SBATCH --gpus=1
 #SBATCH --exclusive                      # ← NO sharing with other users → fixes node contention
 #SBATCH --time=168:00:00                 # 7 days for 100-epoch training
-#SBATCH --job-name=imagenet_$(python3 -c "from config.imagenet_config import MODEL_TYPE; print(MODEL_TYPE)")_100ep        # dynamic job name based on model type
+#SBATCH --job-name=baseline_100ep_convergence_swin      # dynamic job name based on model type
 #SBATCH --output=logs/%j_%x.out          # includes job name → easier to find
 #SBATCH --error=logs/%j_%x.err
 #SBATCH --chdir=/home/pml04/swin_transformer/Machine-Learning-Project
