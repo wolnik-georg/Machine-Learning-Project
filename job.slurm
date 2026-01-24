@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-7d    # your long partition
+#SBATCH --partition=gpu-teaching-2h    # your short partition for testing
 #SBATCH --gpus=1
 #SBATCH --exclusive                      # ← NO sharing with other users → fixes node contention
-#SBATCH --time=168:00:00                 # 7 days for 100-epoch training
-#SBATCH --job-name=baseline_100ep_convergence_swin      # dynamic job name based on model type
+#SBATCH --time=05:00:00                 # 5 hours for quick test run
+#SBATCH --job-name=imagenet_swin_hybrid_5ep        # hybrid model test run
 #SBATCH --output=logs/%j_%x.out          # includes job name → easier to find
 #SBATCH --error=logs/%j_%x.err
 #SBATCH --chdir=/home/pml04/swin_transformer/Machine-Learning-Project
