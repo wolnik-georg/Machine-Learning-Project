@@ -227,7 +227,7 @@ class HybridSwinEncoder(torch.nn.Module):
 
         # Proceed with Swin transformer layers
         for layer in self.swin_model.layers:
-            x = layer(x)
+            x = layer(x, self.swin_model.input_resolution)
         x = self.swin_model.norm(x)
 
         return x
@@ -465,7 +465,7 @@ class ImprovedSwinEncoder(torch.nn.Module):
 
         # Proceed with Swin transformer layers
         for layer in self.swin_model.layers:
-            x = layer(x)
+            x = layer(x, self.swin_model.input_resolution)
         x = self.swin_model.norm(x)
 
         return x
