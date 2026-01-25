@@ -143,8 +143,9 @@ DATA_CONFIG = {
 SWIN_CONFIG = MODEL_CONFIG if MODEL_TYPE == "swin" else {}
 
 # Apply preset values for None fields (only for Swin variants)
-if MODEL_TYPE in ["swin", "swin_hybrid", "swin_improved"]:
-    apply_swin_preset(MODEL_CONFIGS[MODEL_TYPE], SWIN_PRESETS)
+for model_type in ["swin", "swin_hybrid", "swin_improved"]:
+    if model_type in MODEL_CONFIGS:
+        apply_swin_preset(MODEL_CONFIGS[model_type], SWIN_PRESETS)
 
 # =============================================================================
 # Downstream Task Configuration
@@ -168,7 +169,7 @@ TRAINING_CONFIG = {
     "seed": 42,  # Random seed for reproducibility
     "deterministic": False,  # Set to True for fully reproducible (but slower) training
     "learning_rate": 2e-4,  # More conservative for 300 epochs
-    "num_epochs": 20,  # Quick test run (5 hours)
+    "num_epochs": 5,  # Quick test run (5 hours)
     "warmup_epochs": 4,  # ~20% of 20 epochs for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.02,  # Balanced regularization

@@ -228,8 +228,8 @@ class HybridSwinEncoder(torch.nn.Module):
         # Proceed with Swin transformer layers
         for layer in self.swin_model.layers:
             x, H, W = layer(x, H, W)
-        x = self.swin_model.norm(x)
 
+        # Return token sequence [B, L, C] (same format as SwinTransformerModel.forward_features)
         return x
 
 
@@ -379,19 +379,43 @@ class InvertedResidualFFN(torch.nn.Module):
         self.fc2 = torch.nn.Linear(hidden_dim, dim)
         self.drop = torch.nn.Dropout(drop)
 
-    def forward(self, x, H, W):
+    def forward(self, x):
+        """
+        Forward accepts token sequence x with shape [B, L, C].
+        We infer spatial H, W from L (sqrt(L)) so the depthwise
+        convolution can be applied. This matches the call signature of
+        the original MLP used in Swin blocks.
+        """
+        import math
+
         shortcut = x
         x = self.fc1(x)
 
-        # Reshape for depthwise conv: B, L, C -> B, C, H, W
+        # Infer spatial dims from sequence length
         B, L, C = x.shape
-        x = x.transpose(1, 2).view(B, C, H, W)
+        s = int(math.isqrt(L))
+        if s * s == L:
+            H = W = s
+        else:
+            # fallback: find a factorization close to sqrt(L)
+            H = None
+            for candidate in range(s, 0, -1):
+                if L % candidate == 0:
+                    H = candidate
+                    W = L // candidate
+                    break
+            if H is None:
+                # As a last resort, treat sequence as H=1, W=L
+                H, W = 1, L
+
+        # Reshape for depthwise conv: B, L, C -> B, C, H, W
+        x = x.transpose(1, 2).contiguous().view(B, C, H, W)
 
         # Depthwise convolution
         x = self.dwconv(x)
 
         # Reshape back: B, C, H, W -> B, L, C
-        x = x.flatten(2).transpose(1, 2)
+        x = x.flatten(2).transpose(1, 2).contiguous()
 
         # Activation and projection
         x = self.act(x)
@@ -436,10 +460,21 @@ class ImprovedSwinEncoder(torch.nn.Module):
             for block in layer.blocks:
                 # Replace the MLP with inverted residual FFN
                 original_mlp = block.mlp
+                # Infer input dim from original linear layer
+                try:
+                    in_dim = original_mlp.fc1.in_features
+                except Exception:
+                    in_dim = self.embed_dim
+                # Try to get dropout probability if available
+                try:
+                    drop_p = getattr(original_mlp.drop1, "p", 0.0)
+                except Exception:
+                    drop_p = 0.0
+
                 inverted_ffn = InvertedResidualFFN(
-                    dim=getattr(original_mlp, "dim", self.embed_dim),
+                    dim=in_dim,
                     expand_ratio=expand_ratio,
-                    drop=getattr(original_mlp, "drop", 0.0),
+                    drop=drop_p,
                     activation=activation,
                 )
                 block.mlp = inverted_ffn
@@ -466,8 +501,8 @@ class ImprovedSwinEncoder(torch.nn.Module):
         # Proceed with Swin transformer layers
         for layer in self.swin_model.layers:
             x, H, W = layer(x, H, W)
-        x = self.swin_model.norm(x)
 
+        # Return token sequence [B, L, C] (same format as SwinTransformerModel.forward_features)
         return x
 
 
