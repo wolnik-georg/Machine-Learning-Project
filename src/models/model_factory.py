@@ -223,11 +223,11 @@ class HybridSwinEncoder(torch.nn.Module):
                 x = x + self.swin_model.absolute_pos_embed
         else:
             # Fallback to vanilla patch embedding
-            x = self.patch_embed(x)
+            x, (H, W) = self.patch_embed(x)
 
         # Proceed with Swin transformer layers
         for layer in self.swin_model.layers:
-            x = layer(x, self.swin_model.input_resolution)
+            x, H, W = layer(x, H, W)
         x = self.swin_model.norm(x)
 
         return x
@@ -461,11 +461,11 @@ class ImprovedSwinEncoder(torch.nn.Module):
                 x = x + self.swin_model.absolute_pos_embed
         else:
             # Fallback to vanilla patch embedding
-            x = self.swin_model.patch_embed(x)
+            x, (H, W) = self.swin_model.patch_embed(x)
 
         # Proceed with Swin transformer layers
         for layer in self.swin_model.layers:
-            x = layer(x, self.swin_model.input_resolution)
+            x, H, W = layer(x, H, W)
         x = self.swin_model.norm(x)
 
         return x
