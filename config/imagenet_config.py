@@ -12,9 +12,7 @@ from .base_config import (
 )
 
 # Model type selection for comparison experiments
-MODEL_TYPE = (
-    "swin_improved"  # Options: "swin", "swin_hybrid", "swin_improved", "vit", "resnet"
-)
+MODEL_TYPE = "swin"  # Options: "swin", "swin_hybrid", "swin_improved", "vit", "resnet"
 
 # Model configurations for all types
 MODEL_CONFIGS = {
@@ -167,9 +165,9 @@ DOWNSTREAM_CONFIG = {
 TRAINING_CONFIG = {
     "seed": 42,  # Random seed for reproducibility
     "deterministic": False,  # Set to True for fully reproducible (but slower) training
-    "learning_rate": 2e-4,  # More conservative for 100 epochs
-    "num_epochs": 20,  # Quick test run (5 hours)
-    "warmup_epochs": 1,  # ~20% of 5 epochs for stability
+    "learning_rate": 2e-4,  # More conservative for 300 epochs
+    "num_epochs": 300,  # Extended training for full convergence
+    "warmup_epochs": 30,  # ~10% of total epochs for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.02,  # Balanced regularization
     "min_lr": 1e-5,  # Lower minimum LR for full cosine decay
