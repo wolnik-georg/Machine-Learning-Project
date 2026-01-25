@@ -226,7 +226,8 @@ class HybridSwinEncoder(torch.nn.Module):
             x = self.patch_embed(x)
 
         # Proceed with Swin transformer layers
-        x = self.swin_model.layers(x)
+        for layer in self.swin_model.layers:
+            x = layer(x)
         x = self.swin_model.norm(x)
 
         return x
@@ -463,7 +464,8 @@ class ImprovedSwinEncoder(torch.nn.Module):
             x = self.swin_model.patch_embed(x)
 
         # Proceed with Swin transformer layers
-        x = self.swin_model.layers(x)
+        for layer in self.swin_model.layers:
+            x = layer(x)
         x = self.swin_model.norm(x)
 
         return x
