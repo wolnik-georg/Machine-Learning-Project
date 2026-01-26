@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-5h    # short partition for testing - TODO: change to longer partition
+#SBATCH --partition=gpu-teaching-7d    # short partition for testing - TODO: change to longer partition
 #SBATCH --gpus=1
 #SBATCH --exclusive                      # ← NO sharing with other users → fixes node contention
-#SBATCH --time=05:00:00                 # 5 hours for quick test
-#SBATCH --job-name=imagenet_swin_improved_5ep        # swin improved test
+#SBATCH --time=168:00:00                 # 168 hours for extended training
+#SBATCH --job-name=imagenet_swin_improved_50ep        # swin improved 50 epochs
 #SBATCH --output=logs/%j_%x.out          # includes job name → easier to find
 #SBATCH --error=logs/%j_%x.err
 #SBATCH --chdir=/home/georg/Desktop/Machine\ Learning\ Project
