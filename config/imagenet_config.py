@@ -169,8 +169,8 @@ TRAINING_CONFIG = {
     "seed": 42,  # Random seed for reproducibility
     "deterministic": False,  # Set to True for fully reproducible (but slower) training
     "learning_rate": 2e-4,  # More conservative for 300 epochs
-    "num_epochs": 50,  # Medium test run for swin_improved
-    "warmup_epochs": 10,  # ~20% of 50 epochs for stability
+    "num_epochs": 20,  # Medium test run for swin_improved
+    "warmup_epochs": 4,  # ~20% of 20 epochs for stability
     "warmup_start_factor": 0.01,  # Start from very low LR
     "weight_decay": 0.02,  # Balanced regularization
     "min_lr": 1e-5,  # Lower minimum LR for full cosine decay
