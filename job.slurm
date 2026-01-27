@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --partition=gpu-teaching-2h    # short partition for testing - TODO: change to longer partition
+#SBATCH --partition=gpu-teaching-5h    # 5-hour partition for 20-epoch run
 #SBATCH --gpus=1
-#SBATCH --time=02:00:00                 # 2 hours for quick test
+#SBATCH --time=05:00:00                 # 5 hours (20 epochs × 5.5 min + overhead)
 #SBATCH --job-name=imagenet_swin_improved_20ep        # swin improved 20 epochs
 #SBATCH --output=logs/%j_%x.out          # includes job name → easier to find
 #SBATCH --error=logs/%j_%x.err
