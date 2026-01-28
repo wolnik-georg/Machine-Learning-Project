@@ -83,7 +83,7 @@ MODEL_CONFIGS = {
         "use_relative_bias": False,
         "use_absolute_pos_embed": False,
         "use_hierarchical_merge": False,
-        "use_gradient_checkpointing": False,  # Enable for memory efficiency
+        "use_gradient_checkpointing": True,  # CRITICAL: Enable to prevent OOM
         # Convolutional stem (replaces vanilla patch embedding)
         "use_conv_stem": True,
         "conv_stem_config": {
@@ -129,8 +129,8 @@ DATA_CONFIG = {
     "dataset": "ImageNet",
     "use_batch_for_val": False,
     "val_batch": 5,
-    "batch_size": 128,  # Increased for better gradient estimates on ImageNet
-    "num_workers": 8,  # Set to 0 to avoid worker process issues
+    "batch_size": 96,  # Reduced from 128 to prevent OOM with improved model
+    "num_workers": 2,  # Reduced from 8 to match system recommendation and avoid slowness
     "root": "./datasets",
     "img_size": 224,
     # Subset configuration for faster training

@@ -213,6 +213,10 @@ def run_training_loop(
             model, val_generator, criterion, device, amp_dtype=amp_dtype
         )
 
+        # Clear GPU cache after validation to prevent memory accumulation
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+
         # Store metrics
         metrics_history["train_loss"].append(train_loss)
         metrics_history["val_loss"].append(val_loss)

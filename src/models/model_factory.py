@@ -414,7 +414,7 @@ class InvertedResidualFFN(torch.nn.Module):
 
         # Depthwise convolution
         # Force fp32 for depthwise conv to avoid cuDNN issues with bf16 grouped convolutions
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(device_type="cuda", enabled=False):
             x = x.float() if x.dtype == torch.bfloat16 else x
             x = self.dwconv(x)
             x = x.to(torch.bfloat16) if x.dtype == torch.float32 else x
