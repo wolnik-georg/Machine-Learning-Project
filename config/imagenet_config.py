@@ -176,7 +176,7 @@ TRAINING_CONFIG = {
     "min_lr": 1e-5,  # Lower minimum LR for full cosine decay
     "lr_scheduler_type": "cosine",  # Pure cosine annealing as in Swin paper
     "mixed_precision": True,
-    "compile": True,
+    "compile": False,  # Temporarily disabled for debugging - torch.compile causes crashes
     # Early stopping configuration
     "early_stopping": {
         "enabled": False,  # Disabled for ablation studies to ensure consistent training duration
