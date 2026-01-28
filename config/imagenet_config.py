@@ -35,7 +35,7 @@ MODEL_CONFIGS = {
         "use_relative_bias": False,
         "use_absolute_pos_embed": False,
         "use_hierarchical_merge": False,
-        "use_gradient_checkpointing": True,  # Enable for memory efficiency during long training
+        "use_gradient_checkpointing": False,  # Enable for memory efficiency during long training
     },
     "swin_hybrid": {
         "type": "swin_hybrid",
@@ -54,7 +54,7 @@ MODEL_CONFIGS = {
         "use_relative_bias": False,
         "use_absolute_pos_embed": False,
         "use_hierarchical_merge": False,
-        "use_gradient_checkpointing": True,  # Enable for memory efficiency
+        "use_gradient_checkpointing": False,  # Enable for memory efficiency
         # CNN stem configuration for hybrid
         "use_cnn_stem": True,  # Enable CNN-Swin early fusion
         "cnn_stem_config": {
@@ -83,7 +83,7 @@ MODEL_CONFIGS = {
         "use_relative_bias": False,
         "use_absolute_pos_embed": False,
         "use_hierarchical_merge": False,
-        "use_gradient_checkpointing": True,  # Enable for memory efficiency
+        "use_gradient_checkpointing": False,  # Enable for memory efficiency
         # Convolutional stem (replaces vanilla patch embedding)
         "use_conv_stem": True,
         "conv_stem_config": {
