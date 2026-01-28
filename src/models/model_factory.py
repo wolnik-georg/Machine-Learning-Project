@@ -388,8 +388,9 @@ class InvertedResidualFFN(torch.nn.Module):
         """
         import math
 
-        shortcut = x
+        # Expansion
         x = self.fc1(x)
+        x = self.act(x)  # Apply activation BEFORE depthwise conv
 
         # Infer spatial dims from sequence length
         B, L, C = x.shape
@@ -412,17 +413,21 @@ class InvertedResidualFFN(torch.nn.Module):
         x = x.transpose(1, 2).contiguous().view(B, C, H, W)
 
         # Depthwise convolution
-        x = self.dwconv(x)
+        # Force fp32 for depthwise conv to avoid cuDNN issues with bf16 grouped convolutions
+        with torch.cuda.amp.autocast(enabled=False):
+            x = x.float() if x.dtype == torch.bfloat16 else x
+            x = self.dwconv(x)
+            x = x.to(torch.bfloat16) if x.dtype == torch.float32 else x
 
         # Reshape back: B, C, H, W -> B, L, C
         x = x.flatten(2).transpose(1, 2).contiguous()
 
-        # Activation and projection
-        x = self.act(x)
+        # Projection back to original dimension
         x = self.fc2(x)
         x = self.drop(x)
 
-        return shortcut + x  # Residual connection
+        # NO residual here - it's handled at the block level in SwinTransformerBlock
+        return x
 
 
 class ImprovedSwinEncoder(torch.nn.Module):
