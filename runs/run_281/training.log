@@ -33,3 +33,5 @@
 2026-01-28 21:41:57,208 - INFO - Running first forward pass (torch.compile may take time)...
 2026-01-28 21:42:10,033 - INFO - First forward pass complete (output shape: torch.Size([128, 1000]))
 2026-01-28 21:42:14,746 - INFO - First batch complete! Loss: 7.0366
+2026-01-28 22:01:07,684 - INFO - Epoch 1/20: LR: 0.000052
+2026-01-28 22:01:07,703 - INFO - Epoch 1/20: Train Loss: 6.9411, Val Loss: 6.8694, Val Acc: 0.40%
